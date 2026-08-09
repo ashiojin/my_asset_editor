@@ -1,0 +1,27 @@
+info:
+  name: "[Issue] arm_and_rod_ex chg weights "
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: http://localhost:3000/api/anim_graph_command
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "SetWeight": ["clip_slash", 0.0]
+        }
+        ,
+        {
+          "SetWeight": ["clip_slash_2", 1.0]
+        }
+      ]
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

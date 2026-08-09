@@ -1,0 +1,61 @@
+info:
+  name: "[SetGraph] arm_and_rod_ex"
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: http://localhost:3000/api/set_anim_graph
+  body:
+    type: json
+    data: |-
+      {
+        "nodes": {
+          "clip_slash": {
+            "Clip": { 
+              "clip": "slash",
+              "weight": 1.0,
+              "mask": []
+            }
+          },
+          "clip_slash_2": {
+            "Clip": { 
+              "clip": "slash_2",
+              "weight": 0.0,
+              "mask": []
+            }
+          },
+          "blend": {
+            "Blend": {
+              "weight": 1.0,
+              "mask": []
+            }
+          },
+          "root": "Root"
+        },
+        "edges": [
+          {
+            "src": "clip_slash",
+            "dest": "blend"
+          }
+          ,
+          {
+            "src": "clip_slash_2",
+            "dest": "blend"
+          }
+          ,
+          {
+            "src": "blend",
+            "dest": "root"
+          }
+          
+        ],
+        "mask_groups": []
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

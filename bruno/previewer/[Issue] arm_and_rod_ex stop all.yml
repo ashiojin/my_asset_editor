@@ -1,0 +1,27 @@
+info:
+  name: "[Issue] arm_and_rod_ex stop all"
+  type: http
+  seq: 6
+
+http:
+  method: POST
+  url: http://localhost:3000/api/anim_graph_command
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "StopPlay": "clip_slash"
+        }
+        ,
+        {
+          "StopPlay": "clip_slash_2"
+        }
+      ]
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

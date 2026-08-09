@@ -1,0 +1,27 @@
+info:
+  name: "[Issue] arm_and_rod_ex play all"
+  type: http
+  seq: 4
+
+http:
+  method: POST
+  url: http://localhost:3000/api/anim_graph_command
+  body:
+    type: json
+    data: |-
+      [
+        {
+          "PlayRepeat": "clip_slash"
+        }
+        ,
+        {
+          "PlayRepeat": "clip_slash_2"
+        }
+      ]
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
