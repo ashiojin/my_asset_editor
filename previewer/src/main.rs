@@ -60,7 +60,7 @@ struct BevyAppStateResource {
     state: Arc<RwLock<BevyAppExposeState>>,
 
     gltf_handle: Option<Handle<Gltf>>,
-    gltf_need_update_dump: bool,
+    is_waiting_gltf_loaded: bool,
 }
 
 #[derive(Resource, Debug, Default)]
@@ -85,7 +85,7 @@ fn main() {
     });
     App::new()
         .add_plugins(DefaultPlugins.set(AssetPlugin {
-            unapproved_path_mode: bevy::asset::UnapprovedPathMode::Allow,
+            unapproved_path_mode: bevy::asset::UnapprovedPathMode::Deny,
             ..default()
         }))
         .add_message::<AnimeGraphCommand>()
@@ -93,7 +93,7 @@ fn main() {
         .insert_resource(BevyAppStateResource {
             state: state.clone(),
             gltf_handle: None,
-            gltf_need_update_dump: false,
+            is_waiting_gltf_loaded: false,
         })
         .insert_resource(AnimeGraphDesc::default())
         .add_systems(Startup, setup)
@@ -159,7 +159,7 @@ fn receive_api_commands(
                     .override_unapproved()
                     .load(&gltf);
                 bevy_app_state.gltf_handle = Some(handle);
-                bevy_app_state.gltf_need_update_dump = true;
+                bevy_app_state.is_waiting_gltf_loaded = true;
 
                 let mut state = bevy_app_state.state.blocking_write();
                 *state = BevyAppExposeState {
@@ -187,13 +187,14 @@ fn spawn_scene_if_gltf_loaded(
     mut bevy_app_state: ResMut<BevyAppStateResource>,
     gltf: Res<Assets<Gltf>>,
 ) {
-    if !bevy_app_state.gltf_need_update_dump {
+    if !bevy_app_state.is_waiting_gltf_loaded {
         return;
     }
     if let Some(handle) = &bevy_app_state.gltf_handle
         && let Some(gltf) = gltf.get(handle)
     {
-        bevy_app_state.gltf_need_update_dump = false;
+        let handle_clone = handle.clone();
+        bevy_app_state.is_waiting_gltf_loaded = false;
         let mut state = bevy_app_state.state.blocking_write();
         state.gltf_dump = Some(format!("{:?}", gltf.source));
         let scenes = gltf.scenes.iter().cloned();
@@ -218,6 +219,7 @@ fn spawn_scene_if_gltf_loaded(
         let id = commands
             .spawn((
                 WorldAssetRoot(gltf.scenes[0].clone()),
+                SourceGltfHandle(handle_clone),
                 Transform::from_xyz(0., 0., 0.),
                 CurrentScene,
             ))
@@ -253,12 +255,16 @@ fn spawn_scene_if_gltf_loaded(
     }
 }
 
+/// A component that holds the handle to the source GLTF asset.
 #[derive(Component, Debug)]
-struct ControlPanel {
+struct SourceGltfHandle(Handle<Gltf>);
+
+#[derive(Component, Debug)]
+struct AnimationController {
     animation_player_entity: Entity,
     node_indices: HashMap<String, AnimationNodeIndex>,
 }
-impl ControlPanel {
+impl AnimationController {
     fn new(animation_player_entity: Entity) -> Self {
         Self {
             animation_player_entity,
@@ -281,7 +287,7 @@ fn scene_spawned(
         info!("Found AnimationPlayer entity: {:?}", player_entity);
         commands
             .entity(scene_ready.entity)
-            .insert(ControlPanel::new(player_entity));
+            .insert(AnimationController::new(player_entity));
     } else {
         info!("No AnimationPlayer found in the scene");
         info!(
@@ -294,11 +300,8 @@ fn scene_spawned(
 fn apply_anim_graph(
     mut commands: Commands,
     mut anim_graph_desc: ResMut<AnimeGraphDesc>,
-    bevy_app_state: Res<BevyAppStateResource>, // FIXME: It is shared with api server, it can block
-    // the system.
-    // If we pre-process the AnimeGraphDesc, we can avoid this.
     gltf: Res<Assets<Gltf>>,
-    mut q_control_panel: Query<(Entity, &mut ControlPanel)>,
+    mut q_controller: Query<(Entity, &mut AnimationController, &SourceGltfHandle)>,
     mut animation_graphs: ResMut<Assets<AnimationGraph>>,
 ) {
     if anim_graph_desc.is_applied {
@@ -310,18 +313,12 @@ fn apply_anim_graph(
         return;
     };
 
-    let Ok((_entity, mut conpane)) = q_control_panel.single_mut() else {
-        warn!("No ControlPanel found, cannot apply animation graph");
+    let Ok((_entity, mut anim_controller, gltf_handle)) = q_controller.single_mut() else {
+        warn!("No AnimController found, cannot apply animation graph");
         return;
     };
 
-    let Some(gltf_handle) = &bevy_app_state.gltf_handle else {
-        error!("No GLTF handle found, cannot apply animation graph");
-        anim_graph_desc.is_applied = true;
-        return;
-    };
-
-    let Some(gltf) = gltf.get(gltf_handle) else {
+    let Some(gltf) = gltf.get(&gltf_handle.0) else {
         error!("GLTF not loaded yet, cannot apply animation graph");
         anim_graph_desc.is_applied = true;
         return;
@@ -419,27 +416,27 @@ fn apply_anim_graph(
     }
 
     commands
-        .entity(conpane.animation_player_entity)
+        .entity(anim_controller.animation_player_entity)
         .try_insert(AnimationGraphHandle(animation_graphs.add(graph)));
 
-    conpane.node_indices = node_indices;
+    anim_controller.node_indices = node_indices;
     anim_graph_desc.is_applied = true;
 }
 
 fn process_anime_commands(
     mut msgq_anim_graph_command: MessageReader<AnimeGraphCommand>,
-    q_conpane: Query<&ControlPanel>,
+    q_controller: Query<&AnimationController>,
     mut q_player: Query<(&mut AnimationPlayer, &AnimationGraphHandle)>,
     mut anim_graphs: ResMut<Assets<AnimationGraph>>,
 ) {
     if msgq_anim_graph_command.is_empty() {
         return;
     }
-    let Ok(conpane) = q_conpane.single() else {
+    let Ok(anim_controller) = q_controller.single() else {
         warn!("No ControlPanel found, cannot process animation graph commands");
         return;
     };
-    let Ok((mut player, h_graph)) = q_player.get_mut(conpane.animation_player_entity) else {
+    let Ok((mut player, h_graph)) = q_player.get_mut(anim_controller.animation_player_entity) else {
         warn!("No AnimationPlayer found, cannot process animation graph commands");
         return;
     };
@@ -451,7 +448,7 @@ fn process_anime_commands(
     for AnimeGraphCommand(cmd) in msgq_anim_graph_command.read() {
         match cmd {
             anim_graph::AnimeGraphCommand::PlayRepeat(node_name) => {
-                if let Some(&node_index) = conpane.node_indices.get(node_name.as_str()) {
+                if let Some(&node_index) = anim_controller.node_indices.get(node_name.as_str()) {
                     if let Some(anm) = player.animation_mut(node_index) {
                         anm.replay();
                     } else {
@@ -462,7 +459,7 @@ fn process_anime_commands(
                 }
             }
             anim_graph::AnimeGraphCommand::StopPlay(node_name) => {
-                if let Some(&node_index) = conpane.node_indices.get(node_name.as_str()) {
+                if let Some(&node_index) = anim_controller.node_indices.get(node_name.as_str()) {
                     if let Some(_anm) = player.animation_mut(node_index) {
                         player.stop(node_index);
                     } else {
@@ -473,7 +470,7 @@ fn process_anime_commands(
                 }
             }
             anim_graph::AnimeGraphCommand::SetWeight(node_name, weight) => {
-                if let Some(&node_index) = conpane.node_indices.get(node_name.as_str()) {
+                if let Some(&node_index) = anim_controller.node_indices.get(node_name.as_str()) {
                     let Some(node) = graph.get_mut(node_index) else {
                         error!("Node {} not found in AnimationGraph", node_name);
                         continue;
