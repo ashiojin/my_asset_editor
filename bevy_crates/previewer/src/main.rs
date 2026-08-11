@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
+use ashiojin_extensions::SceneArmatureBonePaths;
 use bevy::{
-    gltf::GltfLoaderSettings, platform::collections::HashMap, prelude::*,
-    world_serialization::WorldInstanceReady,
+    animation::AnimationTargetId, gltf::GltfLoaderSettings, platform::collections::HashMap,
+    prelude::*, world_serialization::WorldInstanceReady,
 };
 use tokio::sync::RwLock;
 
@@ -84,11 +85,15 @@ fn main() {
         api::spawn_api_server(sender, state_cloned);
     });
     App::new()
-        .add_plugins(DefaultPlugins.set(AssetPlugin {
-            unapproved_path_mode: bevy::asset::UnapprovedPathMode::Deny,
-            ..default()
-        }))
+        .add_plugins((
+            DefaultPlugins.set(AssetPlugin {
+                unapproved_path_mode: bevy::asset::UnapprovedPathMode::Deny,
+                ..default()
+            }),
+            ashiojin_extensions::AshiojinGltfExtensionsHandlerPlugin,
+        ))
         .add_message::<AnimeGraphCommand>()
+        .add_message::<DebugCommand>()
         .insert_resource(FromApi { receiver })
         .insert_resource(BevyAppStateResource {
             state: state.clone(),
@@ -101,6 +106,7 @@ fn main() {
         .add_systems(Update, spawn_scene_if_gltf_loaded)
         .add_systems(Update, apply_anim_graph)
         .add_systems(Update, process_anime_commands)
+        .add_systems(Update, debug_print_animation_targets_with_names)
         .add_observer(scene_spawned)
         .run();
 }
@@ -130,6 +136,10 @@ struct CurrentScene;
 #[derive(Message, Debug)]
 struct AnimeGraphCommand(anim_graph::AnimeGraphCommand);
 
+#[derive(Message, Debug)]
+struct DebugCommand(String);
+
+#[allow(clippy::too_many_arguments)]
 fn receive_api_commands(
     mut from_api: ResMut<FromApi>,
     mut bevy_app_state: ResMut<BevyAppStateResource>,
@@ -138,6 +148,7 @@ fn receive_api_commands(
     q_current_scene: Query<Entity, With<CurrentScene>>,
     asset_server: Res<AssetServer>,
     mut msgq_anim_graph_command: MessageWriter<AnimeGraphCommand>,
+    mut msgq_debug_command: MessageWriter<DebugCommand>,
 ) {
     //info!("print_for_debug called");
     let receiver = &mut from_api.receiver;
@@ -176,6 +187,9 @@ fn receive_api_commands(
                 for cmd in cmds {
                     msgq_anim_graph_command.write(AnimeGraphCommand(cmd));
                 }
+            }
+            api::ToBevyPayload::Debug(cmd) => {
+                msgq_debug_command.write(DebugCommand(cmd));
             }
         }
     }
@@ -302,6 +316,8 @@ fn apply_anim_graph(
     mut anim_graph_desc: ResMut<AnimeGraphDesc>,
     gltf: Res<Assets<Gltf>>,
     mut q_controller: Query<(Entity, &mut AnimationController, &SourceGltfHandle)>,
+    q_scene_root: Query<(Entity, &SceneArmatureBonePaths)>,
+    q_children: Query<&Children>,
     mut animation_graphs: ResMut<Assets<AnimationGraph>>,
 ) {
     if anim_graph_desc.is_applied {
@@ -313,7 +329,7 @@ fn apply_anim_graph(
         return;
     };
 
-    let Ok((_entity, mut anim_controller, gltf_handle)) = q_controller.single_mut() else {
+    let Ok((entity, mut anim_controller, gltf_handle)) = q_controller.single_mut() else {
         warn!("No AnimController found, cannot apply animation graph");
         return;
     };
@@ -354,11 +370,68 @@ fn apply_anim_graph(
     };
 
     // Make animation graph
-    // TODO: Currently ignoring the masks
     let mut graph = AnimationGraph::new();
     let mut node_indices = HashMap::new();
     node_indices.insert(root_node_name.clone(), graph.root);
 
+    let o_scene_armature_bone_paths = q_children
+        .iter_descendants(entity)
+        .find_map(|child| q_scene_root.get(child).map(|(_, sabp)| sabp.clone()).ok());
+
+    // - Make mask groups
+    let available_mask_group_idx = {
+        let mut bone_name_to_target_ids = HashMap::new();
+        if let Some(sabp) = o_scene_armature_bone_paths {
+            for abp in sabp.armature_bone_paths.iter() {
+                for (bone_name, bone_name_paths) in abp.bone_paths.iter() {
+                    let a_name = Name(abp.armature.to_owned().into());
+                    let mut names = vec![a_name];
+                    names.extend(
+                        bone_name_paths
+                            .iter()
+                            .map(|name| Name(name.clone().into()))
+                            .to_owned(),
+                    );
+                    let target_id = AnimationTargetId::from_names(names.iter());
+                    bone_name_to_target_ids.insert(bone_name.to_owned(), target_id);
+                }
+            }
+        }
+        let mut available_mask_group_idx = 0u64;
+        for (idx, mask_group_desc) in graph_desc.mask_groups.0.iter().enumerate() {
+            let mask_group_idx = anim_graph::MaskGroupIdx::new(idx as u32);
+            let mask_target_ids = mask_group_desc
+                .targets
+                .iter()
+                .filter_map(|target| bone_name_to_target_ids.get(target))
+                .collect::<Vec<_>>();
+
+            for mask_target_id in mask_target_ids {
+                debug!(
+                    "add mask: {:?} to {:?}",
+                    mask_target_id,
+                    mask_group_idx.idx()
+                );
+                graph.add_target_to_mask_group(*mask_target_id, mask_group_idx.idx());
+            }
+
+            available_mask_group_idx |= mask_group_idx.bit();
+        }
+        available_mask_group_idx
+    };
+
+    let get_mask_bits = move |mask: &Vec<anim_graph::MaskGroupIdx>| {
+        let mask_bits = mask.iter().fold(0u64, |acc, mask_idx| acc | mask_idx.bit());
+        if mask_bits & !available_mask_group_idx != 0 {
+            Err(format!(
+                "Mask groups {:?} are not defined in the graph: {:?}",
+                mask, graph_desc.mask_groups.0
+            ))
+        } else {
+            Ok(mask_bits)
+        }
+    };
+    // - Make nodes
     while map.iter().any(|(_, _, _, is_processed)| !*is_processed) {
         let mut cnt_processed = 0;
         for (parent_name, node_name, node_desc, is_processed) in map
@@ -381,21 +454,54 @@ fn apply_anim_graph(
                     if clip_node_desc.mask.is_empty() {
                         graph.add_clip(h_clip.clone(), clip_node_desc.weight, parent_index)
                     } else {
-                        unimplemented!("Masking not implemented yet");
+                        let mask_bits = match get_mask_bits(&clip_node_desc.mask) {
+                            Ok(bits) => bits,
+                            Err(err) => {
+                                error!("ClipNode {}: {}", node_name, err);
+                                continue;
+                            }
+                        };
+
+                        graph.add_clip_with_mask(
+                            h_clip.clone(),
+                            mask_bits,
+                            clip_node_desc.weight,
+                            parent_index,
+                        )
                     }
                 }
                 anim_graph::NodeDesc::Blend(blend_node_desc) => {
                     if blend_node_desc.mask.is_empty() {
                         graph.add_blend(blend_node_desc.weight, parent_index)
                     } else {
-                        unimplemented!("Masking not implemented yet");
+                        let mask_bits = match get_mask_bits(&blend_node_desc.mask) {
+                            Ok(bits) => bits,
+                            Err(err) => {
+                                error!("BlendNode {}: {}", node_name, err);
+                                continue;
+                            }
+                        };
+
+                        graph.add_blend_with_mask(mask_bits, blend_node_desc.weight, parent_index)
                     }
                 }
                 anim_graph::NodeDesc::AdditiveBlend(additive_blend_node_desc) => {
                     if additive_blend_node_desc.mask.is_empty() {
                         graph.add_additive_blend(additive_blend_node_desc.weight, parent_index)
                     } else {
-                        unimplemented!("Masking not implemented yet");
+                        let mask_bits = match get_mask_bits(&additive_blend_node_desc.mask) {
+                            Ok(bits) => bits,
+                            Err(err) => {
+                                error!("AdditiveBlendNode {}: {}", node_name, err);
+                                continue;
+                            }
+                        };
+
+                        graph.add_additive_blend_with_mask(
+                            mask_bits,
+                            additive_blend_node_desc.weight,
+                            parent_index,
+                        )
                     }
                 }
                 anim_graph::NodeDesc::Root => {
@@ -413,6 +519,10 @@ fn apply_anim_graph(
             );
             break;
         }
+    }
+
+    {
+        debug!("Graph: {:?}", graph);
     }
 
     commands
@@ -436,7 +546,8 @@ fn process_anime_commands(
         warn!("No ControlPanel found, cannot process animation graph commands");
         return;
     };
-    let Ok((mut player, h_graph)) = q_player.get_mut(anim_controller.animation_player_entity) else {
+    let Ok((mut player, h_graph)) = q_player.get_mut(anim_controller.animation_player_entity)
+    else {
         warn!("No AnimationPlayer found, cannot process animation graph commands");
         return;
     };
@@ -479,6 +590,20 @@ fn process_anime_commands(
                 } else {
                     error!("Node {} not found in ControlPanel", node_name);
                 }
+            }
+        }
+    }
+}
+
+fn debug_print_animation_targets_with_names(
+    mut msgq_debug_command: MessageReader<DebugCommand>,
+    q_animation_targets: Query<(Entity, &AnimationTargetId, Option<&Name>)>,
+) {
+    for DebugCommand(cmd) in msgq_debug_command.read() {
+        info!("DebugCommand> {}", cmd);
+        if cmd == "print_animation_targets" {
+            for (e, t, o_n) in q_animation_targets.iter() {
+                info!(" {:?}: {:?} -- {:?}", e, t, o_n);
             }
         }
     }

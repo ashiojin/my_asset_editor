@@ -40,18 +40,30 @@ pub struct EdgeDesc {
     pub dest: String,
 }
 
-#[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct MaskGroupIdx(usize);
+#[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize, Eq, PartialEq, Hash)]
+pub struct MaskGroupIdx(u32);
+
+impl MaskGroupIdx {
+    pub fn new(idx: u32) -> Self {
+        Self(idx)
+    }
+    pub fn idx(&self) -> u32 {
+        self.0
+    }
+    pub fn bit(&self) -> u64 {
+        1 << self.idx()
+    }
+}
 
 #[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MaskGroup {
     /// the bone names for the mask group.
     /// the index `targets` is `MaskGroupIdx` in the `mask` field of nodes.
     /// the pathes of the targets will be included in the Gltf
-    targets: Vec<String>,
+    pub targets: Vec<String>,
 }
 #[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct MaskGroups(Vec<MaskGroup>);
+pub struct MaskGroups(pub Vec<MaskGroup>);
 
 
 // === Commands ===

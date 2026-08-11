@@ -1,0 +1,14 @@
+[workspace]
+resolver = "3"
+members = ["ashiojin_extensions","previewer"]
+
+[workspace.dependencies]
+bevy = { version = "0.19", default-features=false }
+bytemuck = { version = "1.24" }
+nonmax = { version = "0.5" }
+rand = { version ="0.10.1" }
+rand_chacha = { version = "0.10.0" }
+gltf = { version = "1.4" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0.150"
+indexmap = { version = "2.14" }

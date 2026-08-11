@@ -54,6 +54,9 @@ pub enum ToBevyPayload {
     SetAnimGraph { anim_graph: anim_graph::AnimeGraphDesc },
     /// Issue Animation Graph Command
     IssueAnimGraphCommand { commands: Vec<anim_graph::AnimeGraphCommand> },
+
+    /// DebugCommands
+    Debug(String),
 }
 
 use std::sync::Arc;
@@ -96,6 +99,7 @@ pub fn spawn_api_server(
         .route("/api/gltf_info", get(get_gltf_info))
         .route("/api/set_anim_graph", post(set_anim_graph))
         .route("/api/anim_graph_command", post(issue_anim_graph_command))
+        .route("/api/_debug", post(issue_debug_command))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
@@ -186,3 +190,14 @@ async fn issue_anim_graph_command(
     (StatusCode::OK, "Animation graph command request queued")
 }
 
+#[debug_handler]
+async fn issue_debug_command(
+    State(state): State<AppState>,
+    Json(cmd): Json<String>,
+) -> impl IntoResponse {
+    let sender = state.sender.clone();
+    if let Err(e) = sender.send(ToBevyPayload::Debug(cmd)).await {
+        eprintln!("Failed to send payload to Bevy: {}", e);
+    }
+    (StatusCode::OK, "Debug command request queued")
+}
