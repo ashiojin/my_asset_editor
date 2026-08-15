@@ -152,8 +152,17 @@ async fn load_gltf(
 #[debug_handler]
 async fn get_gltf_info(State(state): State<AppState>) -> impl IntoResponse {
     let bevy_app_state = state.bevy_app_state.read().await;
+    let status = if bevy_app_state.gltf_path.is_some() {
+        if bevy_app_state.gltf_info.is_some() {
+            "loaded"
+        } else {
+            "loading"
+        }
+    } else {
+        "not requested"
+    };
     let response = serde_json::json!({
-        "status": if bevy_app_state.gltf_path.is_some() { "loaded" } else { "not_loaded" },
+        "status": status,
         "gltf_path": bevy_app_state.gltf_path,
         "debug_gltf_dump": bevy_app_state.gltf_dump,
         "gltf_info": bevy_app_state.gltf_info,
