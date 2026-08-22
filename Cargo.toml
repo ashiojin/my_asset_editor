@@ -1,0 +1,17 @@
+[workspace]
+members = ["tauri-app/src-tauri", "crates/ashiojin_extensions"]
+resolver = "3"
+
+[workspace.dependencies]
+bevy = { version = "0.19", default-features=false }
+gltf = { version = "1.4" }
+#serde = { version = "1", features = ["derive"] }
+#serde_json = "1.0.150"
+
+# Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true
