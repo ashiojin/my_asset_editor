@@ -4,7 +4,7 @@ use bevy::{
 };
 
 use crate::{
-    SceneArmatureBonePaths, SourceGltfHandle, animation::graph_desc::AnimeGraphDesc,
+    SceneArmatureBonePaths, SourceGltfHandle, animation::graph_desc::AnimationGraphDesc,
     scene::NotYetExtacted,
 };
 
@@ -86,11 +86,12 @@ fn scene_spawned(
 }
 
 #[derive(Component, Debug)]
-#[require(NotYetExtacted<AnimationGraphEx>)]
-pub struct AnimationGraphEx(AnimeGraphDesc);
+#[require(NotYetExtacted<AnimationGraphSource>)]
+pub struct AnimationGraphSource(AnimationGraphDesc);
 
-impl AnimationGraphEx {
-    pub fn new(desc: AnimeGraphDesc) -> Self {
+
+impl AnimationGraphSource {
+    pub fn new(desc: AnimationGraphDesc) -> Self {
         Self(desc)
     }
 }
@@ -102,11 +103,11 @@ fn apply_anim_graph(
     q_target: Query<
         (
             Entity,
-            &AnimationGraphEx,
+            &AnimationGraphSource,
             &LinkToAnimationPlayer,
             &SourceGltfHandle,
         ),
-        With<NotYetExtacted<AnimationGraphEx>>,
+        With<NotYetExtacted<AnimationGraphSource>>,
     >,
     q_scene_root: Query<(Entity, &SceneArmatureBonePaths)>,
     q_children: Query<&Children>,
@@ -114,7 +115,7 @@ fn apply_anim_graph(
 ) {
     use graph_desc::*;
 
-    for (entity, AnimationGraphEx(graph_desc), link_to_player, SourceGltfHandle(gltf_handle)) in
+    for (entity, AnimationGraphSource(graph_desc), link_to_player, SourceGltfHandle(gltf_handle)) in
         &q_target
     {
         info!("{:?}", entity);
@@ -122,7 +123,7 @@ fn apply_anim_graph(
             error!("GLTF not loaded yet, cannot apply animation graph");
             commands
                 .entity(entity)
-                .try_remove::<NotYetExtacted<AnimationGraphEx>>();
+                .try_remove::<NotYetExtacted<AnimationGraphSource>>();
             return;
         };
 
@@ -153,7 +154,7 @@ fn apply_anim_graph(
             error!("No root node found in the animation graph, cannot apply animation graph");
             commands
                 .entity(entity)
-                .try_remove::<NotYetExtacted<AnimationGraphEx>>();
+                .try_remove::<NotYetExtacted<AnimationGraphSource>>();
             return;
         };
 
@@ -323,7 +324,7 @@ fn apply_anim_graph(
         ));
         commands
             .entity(entity)
-            .try_remove::<NotYetExtacted<AnimationGraphEx>>();
+            .try_remove::<NotYetExtacted<AnimationGraphSource>>();
 
     }
 }

@@ -1,7 +1,7 @@
 use bevy::{platform::collections::HashMap, prelude::*};
 
 #[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct AnimeGraphDesc {
+pub struct AnimationGraphDesc {
     pub nodes: HashMap<String, NodeDesc>,
     pub edges: Vec<EdgeDesc>,
     pub mask_groups: MaskGroups,

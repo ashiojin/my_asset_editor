@@ -7,7 +7,7 @@ pub enum ToPrevewerCommand {
     LoadGltf { gltf: String },
     /// Set Animation Graph
     SetAnimGraph {
-        anim_graph: anim_graph::AnimeGraphDesc,
+        anim_graph: anim_graph::AnimationGraphDesc,
     },
     /// Issue Animation Graph Command
     IssueAnimGraphCommand {

@@ -64,7 +64,7 @@ enum ErrorSetGraph {
 #[tauri::command]
 async fn set_graph(
     state: State<'_, AppState>,
-    graph: previewer::anim_graph::AnimeGraphDesc,
+    graph: previewer::anim_graph::AnimationGraphDesc,
 ) -> Result<(), ErrorSetGraph> {
     state
         .sender

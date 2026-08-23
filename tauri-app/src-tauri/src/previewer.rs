@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use ashiojin_extensions::animation::{
-    AnimationGraphEx, AnimationGraphHelper, LinkToAnimationPlayer,
+    AnimationGraphSource, AnimationGraphHelper, LinkToAnimationPlayer,
 };
 use ashiojin_extensions::GltfSceneLabel ;
 use bevy::winit::WinitPlugin;
@@ -186,7 +186,7 @@ fn receive_api_commands(
                     .expect("There should be only one CurrentScene");
                 commands
                     .entity(current_scene_entity)
-                    .try_insert((AnimationGraphEx::new(anim_graph),));
+                    .try_insert((AnimationGraphSource::new(anim_graph),));
             }
             api::ToPrevewerCommand::IssueAnimGraphCommand { commands: cmds } => {
                 info!("Issuing animation graph commands: {:?}", cmds);
