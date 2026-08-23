@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use tauri::{
-    Manager, State, async_runtime::{RwLock, Sender},
+    Manager, State,
+    async_runtime::{RwLock, Sender},
 };
 
 use crate::previewer::{PreviewerState, api::ToPrevewerCommand};
@@ -12,17 +13,41 @@ mod previewer;
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
+#[derive(thiserror::Error, Debug, serde::Serialize)]
+struct SendError {
+    message: String,
+}
+impl SendError {
+    fn new(message: String) -> Self {
+        Self { message }
+    }
+}
+impl std::fmt::Display for SendError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
 
-// FIXME: Define & Use errors
+#[derive(thiserror::Error, Debug, serde::Serialize)]
+enum ErrorLoadGltf {
+    #[error("SendError: {0}")]
+    SendError(#[from] SendError),
+    // #[error("Unknonw error")]
+    // Unknown,
+}
+
 #[tauri::command]
-async fn load_gltf(state: State<'_, AppState>, path: &str) -> Result<(), ()> {
-    state.sender.send(
-        ToPrevewerCommand::LoadGltf { gltf: path.to_string() }
-    ).await;
+async fn load_gltf(state: State<'_, AppState>, path: &str) -> Result<(), ErrorLoadGltf> {
+    state
+        .sender
+        .send(ToPrevewerCommand::LoadGltf {
+            gltf: path.to_string(),
+        })
+        .await
+        .map_err(|send_err| SendError::new(send_err.to_string()))?;
     Ok(())
 }
 
-// FIXME: Define & Use errors
 #[tauri::command]
 async fn get_state(state: State<'_, AppState>) -> Result<PreviewerState, ()> {
     let s = state.bevy_app_state.read().await;
@@ -30,21 +55,41 @@ async fn get_state(state: State<'_, AppState>) -> Result<PreviewerState, ()> {
     Ok(s.to_owned())
 }
 
-// FIXME: Define & Use errors
+#[derive(thiserror::Error, Debug, serde::Serialize)]
+enum ErrorSetGraph {
+    #[error("SendError: {0}")]
+    SendError(#[from] SendError),
+}
+
 #[tauri::command]
-async fn set_graph(state: State<'_, AppState>, graph: previewer::anim_graph::AnimeGraphDesc) -> Result<(), ()> {
-    state.sender.send(
-        ToPrevewerCommand::SetAnimGraph { anim_graph: graph })
-        .await;
+async fn set_graph(
+    state: State<'_, AppState>,
+    graph: previewer::anim_graph::AnimeGraphDesc,
+) -> Result<(), ErrorSetGraph> {
+    state
+        .sender
+        .send(ToPrevewerCommand::SetAnimGraph { anim_graph: graph })
+        .await
+        .map_err(|e| SendError::new(e.to_string()))?;
     Ok(())
 }
 
-// FIXME: Define & Use errors
+#[derive(thiserror::Error, Debug, serde::Serialize)]
+enum ErrorIssueGraphCommands {
+    #[error("SendError: {0}")]
+    SendError(#[from] SendError),
+}
+
 #[tauri::command]
-async fn issue_graph_commands(state: State<'_, AppState>, commands: Vec<previewer::anim_graph::AnimeGraphCommand>) -> Result<(), ()> {
-    state.sender.send(
-        ToPrevewerCommand::IssueAnimGraphCommand { commands })
-        .await;
+async fn issue_graph_commands(
+    state: State<'_, AppState>,
+    commands: Vec<previewer::anim_graph::AnimeGraphCommand>,
+) -> Result<(), ErrorIssueGraphCommands> {
+    state
+        .sender
+        .send(ToPrevewerCommand::IssueAnimGraphCommand { commands })
+        .await
+        .map_err(|e| SendError::new(e.to_string()))?;
     Ok(())
 }
 

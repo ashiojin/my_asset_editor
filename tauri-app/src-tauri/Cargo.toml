@@ -25,6 +25,7 @@ serde_json = "1"
 
 # --- from workspace ---
 bevy = { workspace = true, features = ["3d"] }
+thiserror = { workspace = true }
 # --- from workspace ---
 
 ashiojin_extensions = { path = "../../crates/ashiojin_extensions" }
