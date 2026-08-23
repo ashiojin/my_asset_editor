@@ -1,5 +1,12 @@
 use bevy::{platform::collections::HashMap, prelude::*};
 
+mod scene;
+pub mod animation;
+
+pub use scene::SourceGltfHandle as SourceGltfHandle;
+pub use scene::AshiojinGltfScene as AshiojinGltfScene;
+pub use scene::GltfSceneLabel as GltfSceneLabel;
+
 #[derive(Debug)]
 pub struct AshiojinGltfExtensionsHandlerPlugin;
 
@@ -9,6 +16,10 @@ impl Plugin for AshiojinGltfExtensionsHandlerPlugin {
         app.register_type::<SandboxMeshFxConfigExtension>();
         app.register_type::<SandboxActionFxConfig>();
         app.register_type::<SceneArmatureBonePaths>();
+
+        app.add_plugins(scene::SceneBasePlugin);
+        app.add_plugins(animation::AnimationGraphPlugin::default());
+
 
         if let Some(mut handlers) = app.world_mut()
             .resource_mut::<bevy::gltf::extensions::GltfExtensionHandlers>()
@@ -290,3 +301,4 @@ impl bevy::gltf::extensions::GltfExtensionHandler for ReplaceMaterialGltfExtensi
 //         });
 //     }
 // }
+//
