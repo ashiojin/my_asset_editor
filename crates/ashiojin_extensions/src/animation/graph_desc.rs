@@ -55,6 +55,8 @@ impl MaskGroupIdx {
 
 #[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MaskGroup {
+    /// the name of the mask group.
+    pub name: String,
     /// the bone names for the mask group.
     /// the index `targets` is `MaskGroupIdx` in the `mask` field of nodes.
     /// the pathes of the targets will be included in the Gltf

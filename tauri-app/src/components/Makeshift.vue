@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Result } from '@praha/byethrow'
-import { ref, computed } from "vue"
+import { ref, computed, provide, readonly } from "vue"
 
 import { open } from '@tauri-apps/plugin-dialog'
 
@@ -9,11 +9,19 @@ import useDragAndDrop from '../composables/useDnD.js'
 
 import { invoke } from '@tauri-apps/api/core';
 
+import { MaskTargetListKey, type MaskTarget } from './GraphConsts.ts'
+
+import MaskGroupManager from './MaskGroupManager.vue'
+
 const { getNodes } = useVueFlow('animation_graph')
 const { onDragStart } = useDragAndDrop()
 
-const gltf_info = ref<any>({ 'status': '-' }) // FIXME: any!
+const gltf_info = ref<any>({}) // FIXME: any!
 const queued_commands = ref<GraphCommand[]>([])
+
+const mask_target_list = ref<MaskTarget[]>([])
+
+provide(MaskTargetListKey, readonly(mask_target_list))
 
 async function open_gltf() {
     const file = await open({
@@ -31,11 +39,19 @@ async function open_gltf() {
 
     for (let retry_cnt = 0; retry_cnt < 100; retry_cnt++) {
         const ok = await invoke('get_state').then((res_get_info) => {
-            console.log(res_get_info)
+            console.log('fetch', retry_cnt, res_get_info)
             gltf_info.value = res_get_info
-            if (gltf_info.value.status == "loaded") {
-                return true
+            if (gltf_info.value.gltf_info !== null) {
+
+                if (gltf_info.value.scene_info) {
+                    return true
+                } else {
+                    console.log('wait scene_info')
+                    return false
+                }
+
             } else {
+                console.log('wait gltf_info')
                 return false
             }
         })
@@ -46,6 +62,13 @@ async function open_gltf() {
         })
 
         if (ok) {
+            console.log('get_state OK')
+            mask_target_list.value.splice(0)
+            console.log('bones - ', gltf_info.value.scene_info.bones)
+            for (let bone_info of gltf_info.value.scene_info.bones) {
+                console.log('add to mask_target_list', bone_info)
+                mask_target_list.value.push({ target: bone_info.name, path: bone_info.path })
+            }
             break
         }
     }
@@ -98,9 +121,6 @@ async function send_command() {
 <template>
     <div class="container">
         <input type="button" @click="open_gltf" value="LoadGltf" />
-        <div>
-            {{ gltf_info.status }}
-        </div>
         <input type="button" @click="send_graph" value="send" />
         <div class="node_palette">
             <div v-for="animation in gltf_info.gltf_info?.animations ?? []" class="vue-flow__node-output node_item"
@@ -111,7 +131,10 @@ async function send_command() {
             <div class="vue-flow__node-default node_item" :draggable="true"
                 @dragstart="onDragStart($event, 'additive-blend', { weight: 1.0 })">Additive Blend Node</div>
         </div>
-        <div class="Command Queue">
+        <div class="mask_manager">
+            <MaskGroupManager></MaskGroupManager>
+        </div>
+        <div class="command_queue">
             <div>
                 <ul>
                     <li v-for="(_command, idx) in queued_commands">

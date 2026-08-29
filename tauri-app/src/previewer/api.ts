@@ -41,6 +41,7 @@ export type ApiEdge = {
 
 export type ApiMaskGroups = ApiMaskGroup[]
 export type ApiMaskGroup = {
+    name: string,
     targets: string[],
 }
 

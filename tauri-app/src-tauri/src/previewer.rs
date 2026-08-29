@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use ashiojin_extensions::animation::{
-    AnimationGraphSource, AnimationGraphHelper, LinkToAnimationPlayer,
+    AnimationGraphHelper, AnimationGraphSource, LinkToAnimationPlayer,
 };
-use ashiojin_extensions::GltfSceneLabel ;
+use ashiojin_extensions::{GltfSceneLabel, SceneArmatureBonePaths};
 use bevy::winit::WinitPlugin;
+use bevy::world_serialization::WorldInstanceReady;
 use bevy::{
     animation::AnimationTargetId, gltf::GltfLoaderSettings, platform::collections::HashMap,
     prelude::*,
@@ -71,6 +72,8 @@ struct BevyAppStateResource {
 
     gltf_handle: Option<Handle<Gltf>>,
     is_waiting_gltf_loaded: bool,
+
+    cnt: usize,
 }
 
 pub fn run_bevy_app() -> (Sender<ToPrevewerCommand>, Arc<RwLock<PreviewerState>>) {
@@ -98,6 +101,7 @@ pub fn run_bevy_app() -> (Sender<ToPrevewerCommand>, Arc<RwLock<PreviewerState>>
                 state: state.clone(),
                 gltf_handle: None,
                 is_waiting_gltf_loaded: false,
+                cnt: 0,
             })
             .add_systems(Startup, setup)
             .add_systems(Update, receive_api_commands)
@@ -106,6 +110,7 @@ pub fn run_bevy_app() -> (Sender<ToPrevewerCommand>, Arc<RwLock<PreviewerState>>
             .add_systems(Update, process_anime_commands)
             .add_systems(Update, debug_print_animation_targets_with_names)
             //           .add_observer(scene_spawned)
+            .add_observer(on_scene_ready)
             .run();
     });
 
@@ -275,10 +280,50 @@ fn spawn_scene_if_gltf_loaded(
     }
 }
 
+fn on_scene_ready(
+    scene_ready: On<WorldInstanceReady>,
+    q_scene_root: Query<(Entity, &SceneArmatureBonePaths)>,
+    q_children: Query<&Children>,
+    mut bevy_app_state: ResMut<BevyAppStateResource>,
+) {
+    let Some((_entity, scene_armature_bone_paths)) = q_children
+        .iter_descendants(scene_ready.entity)
+        .find_map(|e| q_scene_root.get(e).ok())
+    else {
+        error!(
+            "Not found SceneArmatureBonePaths with {}",
+            scene_ready.entity
+        );
+        return;
+    };
+
+    // update state
+    let mut bone_info_list = vec![];
+    for armature_bone_paths in scene_armature_bone_paths.armature_bone_paths.iter() {
+        for (bone_name, bone_path) in armature_bone_paths.bone_paths.iter() {
+            let mut path = vec![armature_bone_paths.armature.clone()];
+            path.extend_from_slice(bone_path);
+            let bone_info = BoneInfo {
+                name: bone_name.clone(),
+                path,
+            };
+            bone_info_list.push(bone_info);
+        }
+    }
+
+    bevy_app_state.state.blocking_write().scene_info = Some(SceneInfo {
+        bones: bone_info_list,
+    });
+    bevy_app_state.cnt = bevy_app_state.cnt.wrapping_add(1);
+}
 fn process_anime_commands(
     mut msgq_anim_graph_command: MessageReader<AnimeGraphCommand>,
     q_controller: Query<&LinkToAnimationPlayer>,
-    mut q_player: Query<(&mut AnimationPlayer, &AnimationGraphHandle, &AnimationGraphHelper)>,
+    mut q_player: Query<(
+        &mut AnimationPlayer,
+        &AnimationGraphHandle,
+        &AnimationGraphHelper,
+    )>,
     mut anim_graphs: ResMut<Assets<AnimationGraph>>,
 ) {
     if msgq_anim_graph_command.is_empty() {
@@ -288,7 +333,8 @@ fn process_anime_commands(
         warn!("No ControlPanel found, cannot process animation graph commands");
         return;
     };
-    let Ok((mut player, h_graph, graph_helper)) = q_player.get_mut(link_to_player.player_entity()) else {
+    let Ok((mut player, h_graph, graph_helper)) = q_player.get_mut(link_to_player.player_entity())
+    else {
         warn!("No AnimationPlayer found, cannot process animation graph commands");
         return;
     };
