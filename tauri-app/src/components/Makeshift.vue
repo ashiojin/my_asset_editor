@@ -124,7 +124,7 @@ async function send_command() {
         <input type="button" @click="send_graph" value="send" />
         <div class="node_palette">
             <div v-for="animation in gltf_info.gltf_info?.animations ?? []" class="vue-flow__node-output node_item"
-                :draggable="true" @dragstart="onDragStart($event, 'clip', { weight: 1.0, clip_name: animation.name })">{{
+                :draggable="true" @dragstart="onDragStart($event, 'clip', { weight: 1.0, clip_name: animation.name, masks: [] })">{{
                 animation.name }}</div>
             <div class="vue-flow__node-default node_item" :draggable="true"
                 @dragstart="onDragStart($event, 'blend', { weight: 1.0 })">Blend Node</div>

@@ -6,15 +6,10 @@ import MaskGroupSelector from './parts/MaskGroupSelector.vue';
 
 const props = defineProps<ClipNodeProps>()
 
-function debug() {
-    console.log('props.weight', props.data.weight)
-    console.log('props.masks', props.data.masks)
-}
-
 </script>
 
 <template>
-    <div class="vue-flow__node-output" @click="debug">
+    <div class="vue-flow__node-output">
         <div>{{ data.clip_name }}</div>
 
         <WeightSlider v-model="data.weight"></WeightSlider>

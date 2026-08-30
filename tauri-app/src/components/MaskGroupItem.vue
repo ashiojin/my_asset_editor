@@ -1,13 +1,3 @@
-<script lang="ts">
-/// One row of the mask group manager. The owner holds the list; this
-/// component only edits a single entry of it.
-export type MaskGroupItemData = {
-    id: number,
-    name: string,
-    selected: string[],
-}
-</script>
-
 <script setup lang="ts">
 import { computed } from 'vue';
 
@@ -29,7 +19,7 @@ const emit = defineEmits<{
 }>()
 
 const name = defineModel<string>('name', { required: true })
-const selected = defineModel<string[]>('selected', { required: true })
+const targets = defineModel<string[]>('targets', { required: true })
 
 const name_classes = computed(() => ({
     'mask_group_item-name': true,
@@ -42,7 +32,7 @@ const name_classes = computed(() => ({
     <li class="mask_group_item">
         <input :class="name_classes" type="text" v-model="name" @change="emit('commit_name', props.group_id)">
         <button class="mask_group_item-remove" @click="emit('remove', props.group_id)">remove</button>
-        <MaskGroupSelect class="mask_group_item-selector" v-model="selected"></MaskGroupSelect>
+        <MaskGroupSelect class="mask_group_item-selector" v-model="targets"></MaskGroupSelect>
     </li>
 </template>
 

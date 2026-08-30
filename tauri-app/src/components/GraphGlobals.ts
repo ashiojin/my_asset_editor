@@ -3,7 +3,7 @@
 // - The list of the mask groups that can be defined by the user for the graph
 //
 //
-import type { InjectionKey, Ref } from "vue";
+import type { InjectionKey, ComputedRef } from "vue";
 
 
 
@@ -19,6 +19,6 @@ export interface MaskGroup {
 }
 
 
-export const MaskGroupListKey: InjectionKey<Ref<MaskGroup[]>> = Symbol('MaskGroupListKey')
+export const MaskGroupListKey: InjectionKey<ComputedRef<MaskGroup[]>> = Symbol('MaskGroupListKey')
 
 

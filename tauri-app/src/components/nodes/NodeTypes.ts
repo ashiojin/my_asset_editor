@@ -24,13 +24,18 @@ export type AdditiveBlendNodeEvents = {}
 export type AdditiveBlendNodeProps = NodeProps<AdditiveBlendNodeData, AdditiveBlendNodeEvents, 'additive-blend'>
 
 // Clip Node
-export interface ClipNodeData {
+export interface ClipNodeData extends MaskAppled {
     label_id: string,
     clip_name: string,
     weight: number,
 }
 export type ClipNodeEvents = {}
 export type ClipNodeProps = NodeProps<ClipNodeData, ClipNodeEvents, 'clip'>
+
+// Common data for nodes
+export interface MaskAppled {
+    masks: number[],
+}
 
 //
 export type NodeData = AdditiveBlendNodeData | BlendNodeData | ClipNodeData | RootNodeData
