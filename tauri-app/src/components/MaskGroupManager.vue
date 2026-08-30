@@ -74,7 +74,7 @@ function check_not_unique_name(id: number) { // TODO: This is not good. Vue shou
     <div class="mask_group_manager">
         <button @click="add_mask_group" :disabled="isMaskGroupFull">add</button>
         <ul>
-            <li class="mask_group_item" v-for="mask_group in mask_group_list">
+            <li class="mask_group_item" v-for="mask_group in mask_group_list" :key="mask_group.id">
                 <input :class="{ 'mask_group_item-name': true, duplicated: check_not_unique_name(mask_group.id) }" type="text" v-model="mask_group.name" @change="reject_if_not_unique($event, mask_group.id)">
                 <button class="mask_group_item-remove" @click="remove_mask_group(mask_group.id)">remove</button>
                 <MaskGroupSelect class="mask_group_item-selector" v-model="mask_group.selected"></MaskGroupSelect>
