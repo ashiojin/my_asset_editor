@@ -1,14 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 
-import MaskGroupSelect from './MaskGroupSelect.vue'
+import MaskGroupItem, { type MaskGroupItemData } from './MaskGroupItem.vue'
 
-
-type MaskGroupItemData = {
-    id: number,
-    name: string,
-    selected: string[],
-}
 
 let next_id = 1
 const mask_group_list = ref<MaskGroupItemData[]>([])
@@ -43,30 +37,31 @@ function make_unique_name_from(org: string, id: number) {
     }
     return new_name
 }
-function reject_if_not_unique(e: Event, id: number) {
-    const new_val = (e.target as HTMLInputElement).value
+function reject_if_not_unique(id: number) {
     const mask_group = get_mask_group(id)
     if (!mask_group) {
         console.error("Mask group not found")
         return
     }
-    if (is_name_taken(new_val, id)) {
+    if (is_name_taken(mask_group.name, id)) {
         // reject
-        mask_group.name = make_unique_name_from(new_val, id)
+        mask_group.name = make_unique_name_from(mask_group.name, id)
     }
 }
-function check_not_unique_name(id: number) { // TODO: This is not good. Vue should not have to check for uniqueness on every render. Should this be done in a computed property or a watcher?
-    const mask_group = get_mask_group(id)
-    if (!mask_group) {
-        console.error("Mask group not found")
-        return false
-    }
-    // check the name specified by id is unique in the list
-    const name = mask_group.name
-    const count = mask_group_list.value.filter(mg => mg.name === name).length
 
-    return count > 1
-}
+/// The names held by more than one mask group.
+///
+/// Duplicate names are derived state, so this is a computed rather than a
+/// flag written back onto each item by a watcher: there is one source of
+/// truth and nothing to keep in sync. It is recomputed once per mutation
+/// of the list, instead of every row rescanning the list on every render.
+const duplicated_names = computed(() => {
+    const counts = new Map<string, number>()
+    for (const mg of mask_group_list.value) {
+        counts.set(mg.name, (counts.get(mg.name) ?? 0) + 1)
+    }
+    return new Set([...counts].filter(([, n]) => n > 1).map(([name]) => name))
+})
 
 </script>
 
@@ -74,11 +69,13 @@ function check_not_unique_name(id: number) { // TODO: This is not good. Vue shou
     <div class="mask_group_manager">
         <button @click="add_mask_group" :disabled="isMaskGroupFull">add</button>
         <ul>
-            <li class="mask_group_item" v-for="mask_group in mask_group_list" :key="mask_group.id">
-                <input :class="{ 'mask_group_item-name': true, duplicated: check_not_unique_name(mask_group.id) }" type="text" v-model="mask_group.name" @change="reject_if_not_unique($event, mask_group.id)">
-                <button class="mask_group_item-remove" @click="remove_mask_group(mask_group.id)">remove</button>
-                <MaskGroupSelect class="mask_group_item-selector" v-model="mask_group.selected"></MaskGroupSelect>
-            </li>
+            <MaskGroupItem v-for="mask_group in mask_group_list" :key="mask_group.id"
+                :group_id="mask_group.id"
+                :duplicated="duplicated_names.has(mask_group.name)"
+                v-model:name="mask_group.name"
+                v-model:selected="mask_group.selected"
+                @remove="remove_mask_group"
+                @commit_name="reject_if_not_unique"></MaskGroupItem>
         </ul>
     </div>
 </template>
@@ -86,39 +83,6 @@ function check_not_unique_name(id: number) { // TODO: This is not good. Vue shou
 <style scoped>
 .mask_group_manager {
     background-color: #fefef0;
-}
-
-.mask_group_item {
-    background-color: #ffffff;
-    display: grid;
-    /*
-       +---------------+------+
-       | name          |remove|
-       +---------------+------+
-       | selector             |
-       |                      |
-       +----------------------+
-    */
-    grid-template-columns: 1fr auto;
-    justify-content: space-between;
-    align-items: center;
-    border: 1px solid #ddd;
-}
-.mask_group_item-name {
-    grid-column: 1 / 2;
-    grid-row: 1 / 2;
-}
-.mask_group_item-remove {
-    grid-column: 2 / 3;
-    grid-row: 1 / 2;
-}
-.mask_group_item-selector {
-    grid-column: 1 / 3;
-    grid-row: 2 / 3;
-}
-.duplicated {
-    border: 1px solid red;
-    color: red;
 }
 
 </style>
