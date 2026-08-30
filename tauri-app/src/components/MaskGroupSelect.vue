@@ -14,11 +14,6 @@ const options = computed(
     () => target_list.value.map(e => e.target)
 )
 
-function print_options() {
-    console.log(options)
-    console.log(target_list)
-}
-
 </script>
 
 <template>
