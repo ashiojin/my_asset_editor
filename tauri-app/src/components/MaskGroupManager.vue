@@ -14,9 +14,10 @@ let next_id = 1
 const mask_group_list = ref<MaskGroupItemData[]>([])
 
 function add_mask_group() {
+    const id = next_id++
     mask_group_list.value.push({
-        id: next_id++,
-        name: `mg-${next_id}`,
+        id,
+        name: make_unique_name_from(`mg-${id}`, id),
         selected: [],
     })
 }
