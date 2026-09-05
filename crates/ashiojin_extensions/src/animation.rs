@@ -5,7 +5,7 @@ use bevy::{
 
 use crate::{
     SceneArmatureBonePaths, SourceGltfHandle, animation::graph_desc::AnimationGraphDesc,
-    scene::NotYetExtacted,
+    common::NotYetExtacted,
 };
 
 pub mod graph_desc;
@@ -38,17 +38,21 @@ pub struct AnimationGraphHelper {
     node_id_to_idx: HashMap<String, AnimationNodeIndex>,
 
     /// Clip name -> node idx
-    clip_name_to_node_idx: HashMap<String, AnimationNodeIndex>,
+    clip_name_to_node_idx_list: HashMap<String, Vec<AnimationNodeIndex>>,
 }
 
+/// Helper to store some useful information about the animation graph
+///
+/// `AnimationGraphHelper` is inserted into the `AnimationPlayer` entity, not the scene root entity
+/// nor the `AnimationGraphSource` entity.
 impl AnimationGraphHelper {
     pub fn new(
         node_id_to_idx: HashMap<String, AnimationNodeIndex>,
-        clip_name_to_node_idx: HashMap<String, AnimationNodeIndex>,
+        clip_name_to_node_idx_list: HashMap<String, Vec<AnimationNodeIndex>>,
     ) -> Self {
         Self {
             node_id_to_idx,
-            clip_name_to_node_idx,
+            clip_name_to_node_idx_list,
         }
     }
 
@@ -56,8 +60,8 @@ impl AnimationGraphHelper {
         &self.node_id_to_idx
     }
 
-    pub fn clip_name_to_node_idx(&self) -> &HashMap<String, AnimationNodeIndex> {
-        &self.clip_name_to_node_idx
+    pub fn clip_name_to_node_idx(&self) -> &HashMap<String, Vec<AnimationNodeIndex>> {
+        &self.clip_name_to_node_idx_list
     }
 }
 
@@ -260,7 +264,10 @@ fn apply_anim_graph(
                             )
                         };
 
-                        clip_name_to_node_idx.insert(clip_node_desc.clip.clone(), node_index);
+                        clip_name_to_node_idx.entry(clip_node_desc.clip.clone())
+                            .or_insert_with(Vec::new)
+                            .push(node_index);
+
                         node_index
                     }
                     NodeDesc::Blend(blend_node_desc) => {

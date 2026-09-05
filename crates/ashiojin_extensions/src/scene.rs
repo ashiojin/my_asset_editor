@@ -1,6 +1,6 @@
-use std::marker::PhantomData;
-
 use bevy::prelude::*;
+
+use crate::common::NotYetExtacted;
 
 pub struct SceneBasePlugin;
 
@@ -43,16 +43,6 @@ impl AshiojinGltfScene {
             h_gltf,
             label: scene_label,
         }
-    }
-}
-
-#[derive(Component, Debug)]
-pub struct NotYetExtacted<T: Component> {
-    _dummy: PhantomData<T>,
-}
-impl<T: Component> Default for NotYetExtacted<T> {
-    fn default() -> Self {
-        Self { _dummy: default() }
     }
 }
 

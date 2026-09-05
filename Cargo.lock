@@ -244,6 +244,7 @@ dependencies = [
  "bevy",
  "blake3",
  "gltf",
+ "my_meshes",
  "serde",
  "serde_json",
 ]
@@ -4680,6 +4681,13 @@ dependencies = [
  "serde",
  "thiserror 2.0.20",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "my_meshes"
+version = "0.1.0"
+dependencies = [
+ "bevy",
 ]
 
 [[package]]

@@ -1,5 +1,5 @@
 [workspace]
-members = ["tauri-app/src-tauri", "crates/ashiojin_extensions"]
+members = ["tauri-app/src-tauri", "crates/ashiojin_extensions", "crates/my_meshes"]
 resolver = "3"
 
 [workspace.dependencies]

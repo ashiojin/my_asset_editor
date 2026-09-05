@@ -1,11 +1,15 @@
 use bevy::{platform::collections::HashMap, prelude::*};
 
+mod common;
 mod scene;
+mod emitter;
 pub mod animation;
 
 pub use scene::SourceGltfHandle as SourceGltfHandle;
 pub use scene::AshiojinGltfScene as AshiojinGltfScene;
 pub use scene::GltfSceneLabel as GltfSceneLabel;
+
+use crate::common::NotYetExtacted;
 
 #[derive(Debug)]
 pub struct AshiojinGltfExtensionsHandlerPlugin;
@@ -16,9 +20,11 @@ impl Plugin for AshiojinGltfExtensionsHandlerPlugin {
         app.register_type::<SandboxMeshFxConfigExtension>();
         app.register_type::<SandboxActionFxConfig>();
         app.register_type::<SceneArmatureBonePaths>();
+        app.register_type::<NotYetExtacted<SandboxActionFxConfig>>();
 
         app.add_plugins(scene::SceneBasePlugin);
         app.add_plugins(animation::AnimationGraphPlugin::default());
+        app.add_plugins(emitter::EmitterPlugin);
 
 
         if let Some(mut handlers) = app.world_mut()
@@ -71,8 +77,12 @@ pub struct ReplaceMaterialGltfExtensionHandler {
     animation_fx_configs: SandboxActionFxConfig,
 }
 
+/// A component that store FxConfig for each animation (action) in the scene.
+///
+/// It is added to the scene root entity
 #[derive(Component, Reflect, Default, Debug, Clone)]
 #[reflect(Component)]
+#[require(common::NotYetExtacted<SandboxActionFxConfig>)]
 pub struct SandboxActionFxConfig {
     pub maps: HashMap<String, Vec<FxConfig>>, // Animation(Action) name -> Vec<FxConfig>
 }
@@ -209,96 +219,3 @@ impl bevy::gltf::extensions::GltfExtensionHandler for ReplaceMaterialGltfExtensi
         }
     }
 }
-
-// pub fn apply_sandbox_fx_meshes(
-//     mut commands: Commands,
-//     _time: Res<Time>,
-//     #[allow(clippy::type_complexity)] query: Query<
-//         (
-//             Entity,
-//             &SandboxMeshFxConfigExtension,
-//             &Name,
-//             Option<&Mesh3d>,
-//         ),
-//         With<SandboxMeshFxConfigExtension>,
-//     >,
-//     q_scene_root: Query<(Entity, &AutoPlay), Added<AutoPlay>>,
-//     q_fx_cocnfig: Query<(Entity, &SandboxActionFxConfig)>,
-//     q_children: Query<&Children>,
-// ) {
-//     // Add TrailEmitter
-//     for (root_entity, auto_play) in q_scene_root.iter() {
-//         let Some((_, fx_config)) = q_children
-//             .iter_descendants(root_entity)
-//             .find_map(|entity| q_fx_cocnfig.get(entity).ok())
-//         else {
-//             info!(
-//                 "Scene root entity {:?} has AutoPlay but no SandboxActionFxConfig",
-//                 root_entity
-//             );
-//             continue;
-//         };
-//
-//         info!(
-//             "Scene root entity {:?} has AutoPlay and SandboxActionFxConfig with maps: {:?}",
-//             root_entity,
-//             fx_config.maps.keys().collect::<Vec<_>>()
-//         );
-//         q_children.iter_descendants(root_entity).for_each(|entity| {
-//             if let Ok((_, mesh_fx_config_extension, name, _mesh3d)) =
-//                 query.get(entity)
-//             {
-//                 if !mesh_fx_config_extension.is_fx_mesh {
-//                     info!(
-//                         "Skipping entity {:?} (name: {:?}) because is_fx_mesh is false",
-//                         entity,
-//                         name.as_str()
-//                     );
-//                     return;
-//                 }
-//                 // TODO: Should use `fx_type` to determine which effect to apply. For now, we only have one effect, so we ignore it.
-//                 // The below code assumes that the `fx_type` is always "trail", and we will add a TrailEmitter to the entity.
-//
-//                 let mut timings = vec![];
-//                 for (action_name, fx_configs) in fx_config.maps.iter() {
-//                     let Some(anim_node_idx) = auto_play
-//                         .node_idx_list()
-//                         .iter()
-//                         .find(|(n, _)| n.as_str() == action_name.as_str())
-//                         .map(|(_, idx)| idx)
-//                     else {
-//                         continue;
-//                     };
-//                     let fx_configs = fx_configs
-//                         .iter()
-//                         .filter(|fx| fx.target_name == name.as_str())
-//                         .map(|fx| TrailEmitterTiming::new(*anim_node_idx, fx.start_sec, fx.end_sec));
-//
-//                     timings.extend(fx_configs);
-//                 }
-//
-//                 info!(
-//                     "-- node_idx_list: {:?}, fx_config: {:?}, entity: {:?}, name: {:?}, timings: {:?}",
-//                     auto_play.node_idx_list(),
-//                     fx_config,
-//                     entity,
-//                     name.as_str(),
-//                     timings
-//                 );
-//
-//                 info!(
-//                     "Adding TrailEmitter to entity {:?} (name: {:?}) with timings: {:?}",
-//                     entity,
-//                     name.as_str(),
-//                     timings
-//                 );
-//
-//                 commands.entity(entity).try_insert((
-//                     TrailEmitter::new(0.2).extend_timings(timings),
-//                     Visibility::Hidden,
-//                 ));
-//             }
-//         });
-//     }
-// }
-//
