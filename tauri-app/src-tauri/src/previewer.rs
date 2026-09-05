@@ -11,7 +11,8 @@ use bevy::{
     animation::AnimationTargetId, gltf::GltfLoaderSettings, platform::collections::HashMap,
     prelude::*,
 };
-use tauri::{AppHandle, Wry};
+use tauri::AppHandle;
+use tauri::Manager;
 use tauri::async_runtime::Receiver;
 use tauri::async_runtime::RwLock;
 use tauri::async_runtime::Sender;
@@ -220,9 +221,8 @@ fn receive_api_commands(
 fn request_closing_window(
     q_primary_window: Query<Entity, With<bevy::window::PrimaryWindow>>,
     mut window_close_requested_events: MessageReader<WindowCloseRequested>,
-    mut tauri_app_handle: ResMut<TauriAppHandle>,
+    tauri_app_handle: Res<TauriAppHandle>,
 ) {
-    use tauri::Manager;
     let primary_window_entity = q_primary_window.single().expect("There should be only one primary window");
     let close_requested = window_close_requested_events.read().any(
         |event| {

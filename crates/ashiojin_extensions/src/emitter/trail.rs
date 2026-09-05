@@ -8,6 +8,7 @@ use crate::{
     common::NotYetExtacted,
 };
 
+#[allow(clippy::too_many_arguments)]
 pub fn apply_sandbox_fx_meshes(
     mut commands: Commands,
     #[allow(clippy::type_complexity)] query: Query<
