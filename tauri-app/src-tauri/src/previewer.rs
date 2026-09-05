@@ -4,12 +4,14 @@ use ashiojin_extensions::animation::{
     AnimationGraphHelper, AnimationGraphSource, LinkToAnimationPlayer,
 };
 use ashiojin_extensions::{GltfSceneLabel, SceneArmatureBonePaths};
+use bevy::window::WindowCloseRequested;
 use bevy::winit::WinitPlugin;
 use bevy::world_serialization::WorldInstanceReady;
 use bevy::{
     animation::AnimationTargetId, gltf::GltfLoaderSettings, platform::collections::HashMap,
     prelude::*,
 };
+use tauri::{AppHandle, Wry};
 use tauri::async_runtime::Receiver;
 use tauri::async_runtime::RwLock;
 use tauri::async_runtime::Sender;
@@ -75,18 +77,25 @@ struct BevyAppStateResource {
 
     cnt: usize,
 }
+#[derive(Resource, Debug)]
+struct TauriAppHandle(pub AppHandle);
 
-pub fn run_bevy_app() -> (Sender<ToPrevewerCommand>, Arc<RwLock<PreviewerState>>) {
+pub fn run_bevy_app(app_handle: AppHandle) -> (Sender<ToPrevewerCommand>, Arc<RwLock<PreviewerState>>) {
     let (sender, receiver) = channel::<api::ToPrevewerCommand>(100);
     let bevy_app_state = PreviewerState::default();
     let state = Arc::new(RwLock::new(bevy_app_state));
     let state_cloned = state.clone();
+    let app_handle_cloned = app_handle.clone();
     std::thread::spawn(move || {
         App::new()
             .add_plugins((
                 DefaultPlugins
                     .set(AssetPlugin {
                         unapproved_path_mode: bevy::asset::UnapprovedPathMode::Deny,
+                        ..default()
+                    })
+                    .set(WindowPlugin {
+                        close_when_requested: false,
                         ..default()
                     })
                     .set(WinitPlugin {
@@ -103,6 +112,7 @@ pub fn run_bevy_app() -> (Sender<ToPrevewerCommand>, Arc<RwLock<PreviewerState>>
                 is_waiting_gltf_loaded: false,
                 cnt: 0,
             })
+            .insert_resource(TauriAppHandle(app_handle_cloned))
             .add_systems(Startup, setup)
             .add_systems(Update, receive_api_commands)
             .add_systems(Update, spawn_scene_if_gltf_loaded)
@@ -110,6 +120,7 @@ pub fn run_bevy_app() -> (Sender<ToPrevewerCommand>, Arc<RwLock<PreviewerState>>
             .add_systems(Update, process_anime_commands)
             .add_systems(Update, debug_print_animation_targets_with_names)
             //           .add_observer(scene_spawned)
+            .add_systems(Update, request_closing_window)
             .add_observer(on_scene_ready)
             .run();
     });
@@ -205,6 +216,32 @@ fn receive_api_commands(
         }
     }
 }
+
+fn request_closing_window(
+    q_primary_window: Query<Entity, With<bevy::window::PrimaryWindow>>,
+    mut window_close_requested_events: MessageReader<WindowCloseRequested>,
+    mut tauri_app_handle: ResMut<TauriAppHandle>,
+) {
+    use tauri::Manager;
+    let primary_window_entity = q_primary_window.single().expect("There should be only one primary window");
+    let close_requested = window_close_requested_events.read().any(
+        |event| {
+            event.window == primary_window_entity
+        },);
+    if close_requested {
+        info!("Window close requested, sending event to Tauri");
+
+        let cloned_app_handle = tauri_app_handle.0.clone();
+        if let Some(win) = cloned_app_handle.get_webview_window("main") {
+            if let Err(err) = win.close() {
+                error!("Failed to close Tauri window: {:?}", err);
+            }
+        } else {
+            error!("Failed to get Tauri window 'main' to close it");
+        }
+    }
+}
+
 
 fn spawn_scene_if_gltf_loaded(
     mut commands: Commands,

@@ -105,13 +105,23 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(move |app| {
-            let (sender, previewer_state) = previewer::run_bevy_app();
+            let (sender, previewer_state) = previewer::run_bevy_app(app.handle().clone());
             app.manage(AppState {
                 sender,
                 bevy_app_state: previewer_state,
             });
             Ok(())
         })
+        // .on_window_event(|window, event| {
+        //     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+        //         // Send a command to the previewer to close itself
+        //         let app_state: State<AppState> = window.state();
+        //         let sender = app_state.sender.clone();
+        //         tauri::async_runtime::spawn(async move {
+        //             let _ = sender.send(ToPrevewerCommand::ClosePreviewer).await;
+        //         });
+        //     }
+        // })
         .invoke_handler(tauri::generate_handler![
             greet,
             load_gltf,
