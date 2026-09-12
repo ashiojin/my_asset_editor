@@ -13,10 +13,13 @@ import { MaskTargetListKey, type MaskTarget } from './GraphConsts.ts'
 
 import MaskGroupManager from './MaskGroupManager.vue'
 
+import { GraphCommand, GraphCommandType, check_command, getDefault } from "./Command.ts"
+import { nullPreviewerState } from './ToolTypes.ts'
+
 const { getNodes } = useVueFlow('animation_graph')
 const { onDragStart } = useDragAndDrop()
 
-const gltf_info = ref<any>({}) // FIXME: any!
+const gltf_info = usePreviewerState()
 const queued_commands = ref<GraphCommand[]>([])
 
 const mask_target_list = ref<MaskTarget[]>([])
@@ -40,10 +43,13 @@ async function open_gltf() {
     for (let retry_cnt = 0; retry_cnt < 100; retry_cnt++) {
         const ok = await invoke('get_state').then((res_get_info) => {
             console.log('fetch', retry_cnt, res_get_info)
-            gltf_info.value = res_get_info
-            if (gltf_info.value.gltf_info !== null) {
+            gltf_info.state = {
+                status: 'loaded',
+                ...(res_get_info as ApiPreviewerState)
+            }
+            if (gltf_info.state.gltf_info !== null) {
 
-                if (gltf_info.value.scene_info) {
+                if (gltf_info.state.scene_info) {
                     return true
                 } else {
                     console.log('wait scene_info')
@@ -57,15 +63,16 @@ async function open_gltf() {
         })
         .catch((e) => {
             console.error('get_state error', e)
-            gltf_info.value = { status: 'FATAL ERROR' }
+            gltf_info.state = nullPreviewerState()
+            gltf_info.state.status = 'FATAL ERROR'
             return false
         })
 
         if (ok) {
             console.log('get_state OK')
             mask_target_list.value.splice(0)
-            console.log('bones - ', gltf_info.value.scene_info.bones)
-            for (let bone_info of gltf_info.value.scene_info.bones) {
+            console.log('bones - ', gltf_info.state.scene_info?.bones)
+            for (let bone_info of gltf_info.state.scene_info?.bones ?? []) {
                 console.log('add to mask_target_list', bone_info)
                 mask_target_list.value.push({ target: bone_info.name, path: bone_info.path })
             }
@@ -74,7 +81,8 @@ async function open_gltf() {
     }
 }
 
-import { convertToApiGraphCommand, getCurrentGraph } from '../previewer/api.ts'
+import { ApiPreviewerState, convertToApiGraphCommand, getCurrentGraph } from '../previewer/api.ts'
+import { usePreviewerState } from '../stores/PreviewState.ts'
 
 async function send_graph() {
     try {
@@ -93,7 +101,6 @@ const node_options = computed(() => getNodes.value
     .filter(n => n.type !== 'root').map(n => n.data.label_id)
 )
 
-import { GraphCommand, GraphCommandType, check_command, getDefault } from "./Command.ts"
 function add_command(type: GraphCommandType) {
     queued_commands.value.push(getDefault(type))
 }
@@ -123,9 +130,12 @@ async function send_command() {
         <input type="button" @click="open_gltf" value="LoadGltf" />
         <input type="button" @click="send_graph" value="send" />
         <div class="node_palette">
-            <div v-for="animation in gltf_info.gltf_info?.animations ?? []" class="vue-flow__node-output node_item"
-                :draggable="true" @dragstart="onDragStart($event, 'clip', { weight: 1.0, clip_name: animation.name, masks: [] })">{{
-                animation.name }}</div>
+            <!-- <div v-for="animation in gltf_info.state.gltf_info?.animations ?? []" class="vue-flow__node-output node_item" -->
+            <!--     :draggable="true" @dragstart="onDragStart($event, 'clip', { weight: 1.0, clip_name: animation.name, masks: [] })">{{ -->
+            <!--     animation.name }}</div> -->
+            <div class="vue-flow__node-output node_item"
+                :draggable="true" @dragstart="onDragStart($event, 'clip', { weight: 1.0, clip_name: gltf_info.clip_list[0] ?? '-', masks: [] })">
+                Clip Node</div>
             <div class="vue-flow__node-default node_item" :draggable="true"
                 @dragstart="onDragStart($event, 'blend', { weight: 1.0 })">Blend Node</div>
             <div class="vue-flow__node-default node_item" :draggable="true"

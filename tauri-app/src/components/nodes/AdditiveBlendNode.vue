@@ -8,7 +8,7 @@ const props = defineProps<AdditiveBlendNodeProps>()
 
 <template>
     <div class="vue-flow__node-default">
-        <div>Additive Blend</div>
+        <div>Additive Blend: {{ data.label_id }}</div>
 
         <div>{{ data.weight }}</div>
 

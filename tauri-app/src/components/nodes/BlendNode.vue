@@ -9,7 +9,7 @@ const props = defineProps<NodeProps<BlendNodeData, BlendNodeEvents, 'blend'>>()
 
 <template>
     <div class="vue-flow__node-default">
-        <div>Blend</div>
+        <div>Blend: {{ data.label_id }}</div>
 
         <div>{{ data.weight }}</div>
 

@@ -169,3 +169,31 @@ export function convertToApiGraphCommand(command: GraphCommand): ApiGraphCommand
             return { 'SetWeight': [command.selected, new Number(command.weight)] }
     }
 }
+
+// ================================================================
+// STATE
+// ================================================================
+export type ApiPreviewerState = {
+    gltf_path: string | null,
+    gltf_dump: string | null,
+    gltf_sorted_scene_names: string[] | null,
+    gltf_scene_select: ApiSceneSelect | null,
+    gltf_info: ApiGltfInfo | null,
+    scene_info: ApiSceneInfo | null,
+}
+
+type ApiSceneSelect = number
+type ApiGltfInfo = {
+    animations: ApiAnimationInfo[],
+}
+type ApiAnimationInfo = {
+    name: string,
+    idx: number,
+}
+type ApiSceneInfo = {
+    bones: ApiBoneInfo[],
+}
+type ApiBoneInfo = {
+    name: string,
+    path: string[],
+}
