@@ -1,10 +1,11 @@
 # TODO
 
-## Graph features
+## Want to edit
 
-- [ ] Macro
-- [ ] Additional layer that abstracts animation graph operations
-- [ ] Character Controller
+- Animation Graph
+    - [ ] Macro
+    - [ ] Additional layer that abstracts animation graph operations
+- [ ] Character Control
 
 
 ### Macro
@@ -67,4 +68,13 @@ SetWeight "@To" 0.25
 EVENTS:
 - Played("Clip1", "SlashEnd") : "Clip1" node is now played over "SlashEnd" point
 
+
+### Character Control
+
+1. Jumping, including stooping, jumping up, dropping and landing.
+2. The walking animation plays at the same speed as walking. At first, it is only on a straight and front path.
+  a. Turn at a shallow angle.
+  b. Turn at a wide angle with a turn animation.
+3. Stop walking at a wall.
+4. *** TBD ***
 
