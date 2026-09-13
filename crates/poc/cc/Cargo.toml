@@ -1,0 +1,19 @@
+[package]
+name = "cc"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bevy = { workspace = true, features = ["3d"] }
+avian3d = { workspace = true }
+thiserror = { workspace = true }
+# --- from workspace ---
+
+ashiojin_extensions = { path = "../../ashiojin_extensions" }
+
+
+# WORKAROUND
+[dependencies.blake3]
+version = "1.8"
+features = ["pure"]
+# WORKAROUND
