@@ -1,14 +1,19 @@
 use avian3d::prelude::*;
 use bevy::{color::palettes::css, input::keyboard::Key, math::VectorSpace, prelude::*};
 
+mod character_control;
+
 fn main() {
     App::new()
         .add_plugins((
             DefaultPlugins,
             ashiojin_extensions::AshiojinGltfExtensionsHandlerPlugin,
+            character_control::CharacterControlPlugin,
             PhysicsPlugins::default(),
+            PhysicsDebugPlugin::default(),
         ))
         .add_systems(Startup, setup)
+        .add_systems(Startup, character_control::spawn_sample_character)
         .add_systems(Update, jump_up_samples)
         .run();
 }
@@ -91,7 +96,7 @@ fn setup(
         Collider::cuboid(kabe_x.x, kabe_x.y, kabe_x.z),
     ));
 
-    let sample_cube = Vec3::new(1.0, 1.0, 1.0);
+    let sample_cube = Vec3::new(1.0, 0.5, 1.0);
     commands.spawn((
         Sample,
         Mesh3d(meshes.add(Cuboid::from_size(sample_cube))),
@@ -99,7 +104,7 @@ fn setup(
             base_color: css::RED.into(),
             ..default()
         })),
-        Transform::from_xyz(0.0, 10.0, 3.0).with_rotation(Quat::from_rotation_x(0.25)),
+        Transform::from_xyz(2.0, 10.0, 3.0).with_rotation(Quat::from_rotation_x(0.25)),
         RigidBody::Dynamic,
         Collider::cuboid(sample_cube.x, sample_cube.y, sample_cube.z),
     ));
@@ -112,7 +117,7 @@ fn jump_up_samples(
 
     time: Res<Time>,
 ) {
-    if key_input.just_pressed(Key::Space) {
+    if key_input.just_pressed(Key::Character("1".into())) {
         for (_sample_entity, mut forces) in &mut q_sample {
 
 
@@ -121,7 +126,7 @@ fn jump_up_samples(
         }
     }
 
-    if key_input.just_pressed(Key::Character("b".into())) {
+    if key_input.just_pressed(Key::Character("2".into())) {
         for (_sample_entity, mut forces) in &mut q_sample {
             let s = time.elapsed_secs().sin();
             let c = time.elapsed_secs().cos();
