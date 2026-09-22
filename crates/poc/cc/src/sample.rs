@@ -1,4 +1,7 @@
 use crate::character_control::*;
+use ashiojin_extensions::animation::{
+    AnimationGraphHelper, AnimationGraphSource, LinkToAnimationPlayer,
+};
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
@@ -17,6 +20,7 @@ impl Plugin for SamplePlugin {
                 // init_animation.run_if(in_state(SampleState::WorldAssetSpawned)),
                 // kick_idle_animation.run_if(in_state(SampleState::AnimationInitialized)),
                 spawn_sample_character.run_if(in_state(SampleState::WaitLoading)),
+                play_idle_of_sample.run_if(in_state(SampleState::Idle)),
             ),
         );
     }
@@ -36,14 +40,20 @@ struct GltfStore {
 }
 
 #[derive(Resource, Debug)]
-struct SampleStore {
-}
+struct SampleStore {}
 
 fn start_load_gltf(mut commands: Commands, asset_server: Res<AssetServer>) {
     const GLTF_PATH: &str = "models/inv_legs.glb";
     let h_gltf = asset_server.load::<Gltf>(GLTF_PATH);
     commands.insert_resource(GltfStore { h_gltf });
     commands.set_state(SampleState::WaitLoading);
+}
+
+fn get_sample_animation_graph() -> ashiojin_extensions::animation::graph_desc::AnimationGraphDesc {
+    let json = include_str!("../assets/models/inv_legs.clips_jump.ag.json");
+    let graph_desc: ashiojin_extensions::animation::graph_desc::AnimationGraphDesc =
+        serde_json::from_str(json).unwrap();
+    graph_desc
 }
 
 fn spawn_sample_character(mut commands: Commands, store: Res<GltfStore>) {
@@ -55,6 +65,24 @@ fn spawn_sample_character(mut commands: Commands, store: Res<GltfStore>) {
         .spawn(
             // collider
             (Collider::capsule(cap_radius, cap_length), col_trans),
+        )
+        .id();
+    let app_id = commands
+        .spawn(
+            // appearance
+            (
+                // Mesh3d(meshes.add(Capsule3d::new(cap_radius, cap_length))),
+                // MeshMaterial3d(standard_materials.add(StandardMaterial {
+                //     base_color: Color::srgb(0.8, 0.7, 0.6),
+                //     ..default()
+                // })),
+                //col_trans,
+                ashiojin_extensions::AshiojinGltfScene::new(
+                    store.h_gltf.clone(),
+                    ashiojin_extensions::GltfSceneLabel::Idx(0),
+                ),
+                AnimationGraphSource::new(get_sample_animation_graph()),
+            ),
         )
         .id();
     let id = commands
@@ -69,31 +97,49 @@ fn spawn_sample_character(mut commands: Commands, store: Res<GltfStore>) {
             InheritedVisibility::VISIBLE,
         ))
         .add_child(col_id)
-        .with_child(
-            // appearance
-            (
-                // Mesh3d(meshes.add(Capsule3d::new(cap_radius, cap_length))),
-                // MeshMaterial3d(standard_materials.add(StandardMaterial {
-                //     base_color: Color::srgb(0.8, 0.7, 0.6),
-                //     ..default()
-                // })),
-                //col_trans,
-                ashiojin_extensions::AshiojinGltfScene::new(store.h_gltf.clone(), ashiojin_extensions::GltfSceneLabel::Idx(0)),
-            ),
-        )
+        .add_child(app_id)
         .id();
 
     // res
-    commands.insert_resource(PlayerCharacter { control: id });
+    commands.insert_resource(PlayerCharacter {
+        control: id,
+        app_id,
+    });
 
     commands.set_state(SampleState::Idle);
 }
-#[derive(Resource, Debug)]
-struct AnimationGraphNodes {
-    idle: AnimationNodeIndex,
-    inair: AnimationNodeIndex,
-    landing: AnimationNodeIndex,
-    takeoff: AnimationNodeIndex,
+
+fn play_idle_of_sample(
+    player_character: Res<PlayerCharacter>,
+    q_link_to_player: Query<&LinkToAnimationPlayer>,
+    mut q_player: Query<(
+        &mut AnimationPlayer,
+        &AnimationGraphHandle,
+        &AnimationGraphHelper,
+    )>,
+    mut _animation_graph: ResMut<Assets<AnimationGraph>>, // For example to set weights of nodes, but not used in this function
+    mut is_processed: Local<bool>,
+) {
+    if *is_processed {
+        return;
+    }
+    if let Ok(link) = q_link_to_player.get(player_character.app_id)
+        && let Ok((mut anim_player, _graph_handle, graph_helper)) =
+            q_player.get_mut(link.player_entity())
+    {
+        let nid_idle = graph_helper
+            .node_id_to_idx()
+            .get("clip_0")
+            .expect("Idle node not found");
+        anim_player.play(*nid_idle).repeat();
+        *is_processed = true;
+
+        // e.g. set weights
+        // let mut graph = _animation_graph.get_mut(_graph_handle).expect("AnimationGraph not found");
+        // graph.get_mut(*nid_idle).expect("Idle node not found").weight = 0.25;
+    } else {
+        info!("AnimationPlayer not found for the sample character");
+    }
 }
 
 // fn init_animation(

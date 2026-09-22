@@ -211,6 +211,18 @@ fn receive_api_commands(
                     msgq_anim_graph_command.write(AnimeGraphCommand(cmd));
                 }
             }
+            api::ToPrevewerCommand::SaveGraph { path, anim_graph, pretty } => {
+                info!("Saving animation graph to {}: {:?}", path, anim_graph);
+                if pretty {
+                    if let Err(err) = std::fs::write(&path, serde_json::to_string_pretty(&anim_graph).unwrap()) {
+                        error!("Failed to save animation graph to {}: {:?}", path, err);
+                    }
+                } else {
+                    if let Err(err) = std::fs::write(&path, serde_json::to_string(&anim_graph).unwrap()) {
+                        error!("Failed to save animation graph to {}: {:?}", path, err);
+                    }
+                }
+            }
             api::ToPrevewerCommand::Debug(cmd) => {
                 msgq_debug_command.write(DebugCommand(cmd));
             }

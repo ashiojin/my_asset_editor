@@ -3,6 +3,7 @@ import { Result } from '@praha/byethrow'
 import { ref, computed, provide, readonly } from "vue"
 
 import { open } from '@tauri-apps/plugin-dialog'
+import { save } from '@tauri-apps/plugin-dialog'
 
 import { useVueFlow } from '@vue-flow/core'
 import useDragAndDrop from '../composables/useDnD.js'
@@ -37,7 +38,7 @@ async function open_gltf() {
         .then(
             () => console.log('load_gltf', 'ok'),
         )
-    .catch((e) => console.log('load_gltf', 'err', e))
+        .catch((e) => console.log('load_gltf', 'err', e))
 
 
     for (let retry_cnt = 0; retry_cnt < 100; retry_cnt++) {
@@ -61,12 +62,12 @@ async function open_gltf() {
                 return false
             }
         })
-        .catch((e) => {
-            console.error('get_state error', e)
-            gltf_info.state = nullPreviewerState()
-            gltf_info.state.status = 'FATAL ERROR'
-            return false
-        })
+            .catch((e) => {
+                console.error('get_state error', e)
+                gltf_info.state = nullPreviewerState()
+                gltf_info.state.status = 'FATAL ERROR'
+                return false
+            })
 
         if (ok) {
             console.log('get_state OK')
@@ -88,6 +89,34 @@ async function send_graph() {
     try {
         const graph = getCurrentGraph()
         await invoke('set_graph', { graph })
+
+    } catch (error) {
+        console.error('Fetch failed', { error })
+    }
+}
+
+async function choose_path_and_save_graph() {
+    const file = await save({
+        filters: [
+            {
+                name: 'json',
+                extensions: ['json'],
+            }
+        ],
+    })
+    if (file) {
+        await save_graph(file)
+    }
+}
+
+async function save_graph(path: string) {
+    try {
+        const graph = getCurrentGraph()
+        await invoke('save_graph', {
+            path,
+            graph,
+            pretty: true,
+        })
 
     } catch (error) {
         console.error('Fetch failed', { error })
@@ -128,13 +157,14 @@ async function send_command() {
 <template>
     <div class="container">
         <input type="button" @click="open_gltf" value="LoadGltf" />
-        <input type="button" @click="send_graph" value="send" />
+        <input type="button" @click="send_graph" value="Send Graph" />
+        <input type="button" @click="choose_path_and_save_graph" value="Save Graph" />
         <div class="node_palette">
             <!-- <div v-for="animation in gltf_info.state.gltf_info?.animations ?? []" class="vue-flow__node-output node_item" -->
             <!--     :draggable="true" @dragstart="onDragStart($event, 'clip', { weight: 1.0, clip_name: animation.name, masks: [] })">{{ -->
             <!--     animation.name }}</div> -->
-            <div class="vue-flow__node-output node_item"
-                :draggable="true" @dragstart="onDragStart($event, 'clip', { weight: 1.0, clip_name: gltf_info.clip_list[0] ?? '-', masks: [] })">
+            <div class="vue-flow__node-output node_item" :draggable="true"
+                @dragstart="onDragStart($event, 'clip', { weight: 1.0, clip_name: gltf_info.clip_list[0] ?? '-', masks: [] })">
                 Clip Node</div>
             <div class="vue-flow__node-default node_item" :draggable="true"
                 @dragstart="onDragStart($event, 'blend', { weight: 1.0 })">Blend Node</div>

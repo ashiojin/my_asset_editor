@@ -100,6 +100,7 @@ impl AthleticBundle {
 #[derive(Resource, Debug)]
 pub struct PlayerCharacter {
     pub control: Entity,
+    pub app_id: Entity,
 }
 
 fn keyboard_input(

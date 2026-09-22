@@ -14,6 +14,13 @@ pub enum ToPrevewerCommand {
         commands: Vec<anim_graph::AnimeGraphCommand>,
     },
 
+    /// Save Animation Graph
+    SaveGraph {
+        path: String,
+        anim_graph: anim_graph::AnimationGraphDesc,
+        pretty: bool,
+    },
+
     /// DebugCommands
     Debug(String),
 }

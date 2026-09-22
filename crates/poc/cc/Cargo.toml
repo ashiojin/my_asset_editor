@@ -11,6 +11,10 @@ thiserror = { workspace = true }
 
 ashiojin_extensions = { path = "../../ashiojin_extensions" }
 
+# ----------------------
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
 
 # WORKAROUND
 [dependencies.blake3]

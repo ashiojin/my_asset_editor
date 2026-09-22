@@ -1,0 +1,52 @@
+{
+  "nodes": {
+    "root": "Root",
+    "clip_2": {
+      "Clip": {
+        "clip": "inair",
+        "weight": 1.0,
+        "mask": []
+      }
+    },
+    "clip_0": {
+      "Clip": {
+        "clip": "idle",
+        "weight": 1.0,
+        "mask": []
+      }
+    },
+    "clip_1": {
+      "Clip": {
+        "clip": "takeoff",
+        "weight": 1.0,
+        "mask": []
+      }
+    },
+    "clip_3": {
+      "Clip": {
+        "clip": "landing",
+        "weight": 1.0,
+        "mask": []
+      }
+    }
+  },
+  "edges": [
+    {
+      "src": "clip_0",
+      "dest": "root"
+    },
+    {
+      "src": "clip_1",
+      "dest": "root"
+    },
+    {
+      "src": "clip_2",
+      "dest": "root"
+    },
+    {
+      "src": "clip_3",
+      "dest": "root"
+    }
+  ],
+  "mask_groups": []
+}

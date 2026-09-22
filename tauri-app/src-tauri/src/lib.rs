@@ -93,6 +93,33 @@ async fn issue_graph_commands(
     Ok(())
 }
 
+#[derive(thiserror::Error, Debug, serde::Serialize)]
+enum ErrorSaveGraph {
+    #[error("SendError: {0}")]
+    SendError(#[from] SendError),
+    // #[error("Unknonw error")]
+    // Unknown,
+}
+
+#[tauri::command]
+async fn save_graph(
+    state: State<'_, AppState>,
+    path: &str,
+    graph: previewer::anim_graph::AnimationGraphDesc,
+    pretty: Option<bool>,
+) -> Result<(), ErrorSaveGraph> {
+    state
+        .sender
+        .send(ToPrevewerCommand::SaveGraph {
+            path: path.to_string(),
+            anim_graph: graph,
+            pretty: pretty.is_some_and(|p| p),
+        })
+        .await
+        .map_err(|send_err| SendError::new(send_err.to_string()))?;
+    Ok(())
+}
+
 #[derive(Clone)]
 struct AppState {
     sender: Sender<ToPrevewerCommand>,
@@ -128,6 +155,7 @@ pub fn run() {
             get_state,
             set_graph,
             issue_graph_commands,
+            save_graph,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
