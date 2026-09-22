@@ -17,7 +17,7 @@ impl Plugin for CharacterControlPlugin {
             .add_systems(
                 Update,
                 (
-                    keyboard_input,
+                    keyboard_input.run_if(resource_exists::<PlayerCharacter>),
                     update_grounded,
                     update_langing_and_push_off,
                     movement,
@@ -28,50 +28,6 @@ impl Plugin for CharacterControlPlugin {
             );
     }
 }
-
-pub fn spawn_sample_character(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut standard_materials: ResMut<Assets<StandardMaterial>>,
-) {
-    let cap_length = 0.7;
-    let cap_radius = 0.15;
-    let length = cap_length + cap_radius * 2.;
-    let app_trans = Transform::from_xyz(0.0, (cap_radius*2. + cap_length) / 2., 0.0);
-    let col_id = commands.spawn
-        (
-            // collider
-            (
-                Collider::capsule(cap_radius, cap_length),
-                app_trans,
-            )
-        )
-        .id();
-    let id = commands
-        .spawn((
-            AthleticBundle::new(col_id, Collider::capsule(cap_radius, cap_length), app_trans, 0.2),
-            Transform::from_xyz(0.0, length * 3., 0.0), // Spawn the character above the ground
-            InheritedVisibility::VISIBLE,
-        ))
-        .add_child(col_id)
-        .with_child(
-            // appearance
-            (
-                Mesh3d(meshes.add(Capsule3d::new(cap_radius, cap_length))),
-                MeshMaterial3d(standard_materials.add(StandardMaterial {
-                    base_color: Color::srgb(0.8, 0.7, 0.6),
-                    ..default()
-                })),
-                app_trans,
-            ),
-        ).id();
-
-    // res
-    commands.insert_resource(PlayerCharacter {
-        control: id,
-    });
-}
-
 
 #[derive(Component, Debug)]
 pub struct AthleticController;
@@ -96,7 +52,7 @@ pub struct AthleticNotification {
 #[derive(Debug, Clone)]
 pub enum AthleticNotificationInfo {
     StartLanding,
-    StartPushOff,
+    StartTakeoff,
     StartStanding,
     StartInAir { is_jumping: bool },
 }
@@ -106,7 +62,7 @@ pub enum AthleticNotificationInfo {
 pub enum Grounded {
     Landing { elapsed: f32 },
     Standing,
-    PushOff { elapsed: f32 },
+    Takeoff { elapsed: f32 },
 }
 
 #[derive(Component, Debug)]
@@ -143,7 +99,7 @@ impl AthleticBundle {
 
 #[derive(Resource, Debug)]
 pub struct PlayerCharacter {
-    control: Entity,
+    pub control: Entity,
 }
 
 fn keyboard_input(
@@ -201,8 +157,8 @@ fn update_grounded(
             (Some(Grounded::Standing), false) => {
                 // No change
             }
-            (Some(Grounded::PushOff { elapsed }), true) => {
-                commands.entity(entity).try_insert(Grounded::PushOff {
+            (Some(Grounded::Takeoff { elapsed }), true) => {
+                commands.entity(entity).try_insert(Grounded::Takeoff {
                     elapsed: *elapsed + time.delta_secs(),
                 });
             }
@@ -250,7 +206,7 @@ fn update_langing_and_push_off(
                     info: AthleticNotificationInfo::StartStanding,
                 });
             }
-            Grounded::PushOff { elapsed } if *elapsed > PUSH_OFF_DURATION => {
+            Grounded::Takeoff { elapsed } if *elapsed > PUSH_OFF_DURATION => {
                 commands.entity(entity).try_remove::<Grounded>();
 
                 // Jump
@@ -282,10 +238,10 @@ fn movement(
         {
             commands
                 .entity(entity)
-                .try_insert(Grounded::PushOff { elapsed: 0.0 });
+                .try_insert(Grounded::Takeoff { elapsed: 0.0 });
             notification_writer.write(AthleticNotification {
                 athrethic_base: entity,
-                info: AthleticNotificationInfo::StartPushOff,
+                info: AthleticNotificationInfo::StartTakeoff,
             });
         }
     }
