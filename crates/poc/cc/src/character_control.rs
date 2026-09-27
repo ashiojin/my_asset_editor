@@ -12,62 +12,112 @@ pub struct CharacterControlPlugin;
 
 impl Plugin for CharacterControlPlugin {
     fn build(&self, app: &mut App) {
-        app.add_message::<MovmentIndication>()
-            .add_message::<AthleticNotification>()
-            .add_systems(
-                Update,
-                (
-                    keyboard_input.run_if(resource_exists::<PlayerCharacter>),
-                    update_grounded,
-                    update_langing_and_push_off,
-                    movement,
-                    debug_print_grounded,
-                    debug_print_notifications,
-                )
-                    .chain(),
-            );
+        app.add_message::<PlayerIndication>().add_systems(
+            Update,
+            (
+                keyboard_input.run_if(any_with_component::<PlayerController>),
+                update_grounded,
+                //update_langing_and_push_off,
+                movement,
+                debug_print_grounded,
+                //debug_print_notifications,
+            )
+                .chain(),
+        );
     }
 }
 
 #[derive(Component, Debug)]
-pub struct AthleticController;
+pub struct AthleticController {}
+impl AthleticController {
+    fn new() -> Self {
+        Self {}
+    }
+}
 
 #[derive(Message, Debug)]
-pub struct MovmentIndication {
-    pub athrethic_base: Entity,
-    pub action: MovementAction,
+pub struct PlayerIndication {
+    pub action: PlayerIndicationType,
 }
 
 #[derive(Debug, Clone)]
-pub enum MovementAction {
+pub enum PlayerIndicationType {
     Jump,
 }
 
-#[derive(Message, Debug)]
-pub struct AthleticNotification {
-    pub athrethic_base: Entity,
-    pub info: AthleticNotificationInfo,
+/// apply a jump impulse to the entity.
+/// It is an EntityCommands
+fn ecmd_jump(mut entity: EntityWorldMut) {
+    let Ok((jump_impulse, mut forces)) = entity.get_components_mut::<(&JumpImpulse, Forces)>()
+    else {
+        error!(
+            "entity {:?} does not have JumpImpulse and Forces components",
+            entity.id()
+        );
+        error!(" - JumpImpluse : {}", entity.contains::<JumpImpulse>());
+        error!(
+            " - Forces : {}",
+            entity.get_components_mut::<Forces>().is_ok()
+        );
+        error!("Check if the entity has the AthleticBundle components");
+        return;
+    };
+
+    forces.apply_linear_impulse(Vec3::Y * jump_impulse.0);
 }
 
-#[derive(Debug, Clone)]
-pub enum AthleticNotificationInfo {
-    StartLanding,
-    StartTakeoff,
-    StartStanding,
-    StartInAir { is_jumping: bool },
+fn ecmd_get_standing(mut entity: EntityWorldMut) {
+    let Ok(mut grounded) = entity.get_components_mut::<&mut Grounded>() else {
+        error!(
+            "entity {:?} does not have Grounded and MessageWriter<AthleticNotification> components",
+            entity.id()
+        );
+        error!("Check if the entity has the AthleticBundle components");
+        return;
+    };
+
+    *grounded = Grounded::Standing;
+    entity.trigger(StartStanding);
 }
+
+pub trait AthleticEntityCommandsExt {
+    fn jump(&mut self) -> &mut Self;
+    fn get_standing(&mut self) -> &mut Self;
+}
+
+impl AthleticEntityCommandsExt for EntityCommands<'_> {
+    fn jump(&mut self) -> &mut Self {
+        self.queue(ecmd_jump);
+        self
+    }
+    fn get_standing(&mut self) -> &mut Self {
+        self.queue(ecmd_get_standing);
+        self
+    }
+}
+
+#[derive(EntityEvent, Debug)]
+pub struct StartLanding(Entity);
+
+#[derive(EntityEvent, Debug)]
+pub struct StartTakeoff(Entity);
+
+#[derive(EntityEvent, Debug)]
+pub struct StartStanding(Entity);
+
+#[derive(EntityEvent, Debug)]
+pub struct StartInAir(Entity);
 
 /// Component to indicate the grounded state of the character
 #[derive(Component, Debug)]
 pub enum Grounded {
     Landing { elapsed: f32 },
     Standing,
-    Takeoff { elapsed: f32 },
+    Crunting { elapsed: f32 },
 }
 
 #[derive(Component, Debug)]
 pub struct JumpImpulse(f32);
-
 
 #[derive(Bundle)]
 pub struct AthleticBundle {
@@ -76,42 +126,51 @@ pub struct AthleticBundle {
     locked_axes: LockedAxes,
     grounding_caster: ShapeCaster,
     jump_impulse: JumpImpulse,
+    restitution: Restitution,
 }
 
 impl AthleticBundle {
-    pub fn new(collider_entity: Entity, collider: Collider, collider_trans: Transform, jump_impulse: f32) -> Self {
+    pub fn new(
+        collider_entity: Entity,
+        collider: Collider,
+        collider_trans: Transform,
+        jump_impulse: f32,
+    ) -> Self {
         let mut caster_shape = collider.clone();
         caster_shape.set_scale(Vec3::ONE * 0.99, 10);
-        let grounding_caster =
-            ShapeCaster::new(caster_shape, collider_trans.translation, collider_trans.rotation, Dir3::NEG_Y)
-            .with_max_distance(0.05)
-            .with_query_filter(SpatialQueryFilter::from_excluded_entities([collider_entity]))
-            ;
+        let grounding_caster = ShapeCaster::new(
+            caster_shape,
+            collider_trans.translation,
+            collider_trans.rotation,
+            Dir3::NEG_Y,
+        )
+        .with_max_distance(0.20)
+        .with_query_filter(SpatialQueryFilter::from_excluded_entities([
+            collider_entity,
+        ]));
         Self {
             rigitbody: RigidBody::Dynamic,
-            base: AthleticController,
+            base: AthleticController::new(),
             locked_axes: LockedAxes::ROTATION_LOCKED,
             grounding_caster,
             jump_impulse: JumpImpulse(jump_impulse),
+            restitution: Restitution::new(0.0)
+                .with_combine_rule(CoefficientCombine::Min)
+                ,
         }
     }
 }
 
-#[derive(Resource, Debug)]
-pub struct PlayerCharacter {
-    pub control: Entity,
-    pub app_id: Entity,
-}
+#[derive(Component, Debug, Clone, Copy)]
+pub struct PlayerController;
 
 fn keyboard_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    player_character: Res<PlayerCharacter>,
-    mut movement_writer: MessageWriter<MovmentIndication>,
+    mut movement_writer: MessageWriter<PlayerIndication>,
 ) {
     if keyboard_input.just_pressed(KeyCode::Space) {
-        movement_writer.write(MovmentIndication {
-            athrethic_base: player_character.control,
-            action: MovementAction::Jump,
+        movement_writer.write(PlayerIndication {
+            action: PlayerIndicationType::Jump,
         });
     }
 }
@@ -119,32 +178,24 @@ fn keyboard_input(
 fn update_grounded(
     time: Res<Time>,
     mut commands: Commands,
-    q_athletic_base: Query<(
-        Entity,
-        &AthleticController,
-        &ShapeHits,
-        &GlobalTransform,
-        &LinearVelocity,
-        Option<&mut Grounded>,
-    )>,
-    mut notification_writer: MessageWriter<AthleticNotification>,
+    q_athletic_base: Query<
+        (Entity, &ShapeHits, &LinearVelocity, Option<&mut Grounded>),
+        With<AthleticController>,
+    >,
     mut l_last: Local<bool>,
 ) {
-    for (entity, base, hits, global_trans, velocity, o_grounded) in &q_athletic_base {
-        let has_upper_velocity = velocity.0.y > 0.0;
-        let is_grounded = !has_upper_velocity && hits.iter().any(|hit| {
-            const MAX_ANGLE: f32 = PI * 0.45;
-            Vec3::Y.angle_between(-hit.normal2).abs() <= MAX_ANGLE
-        });
-
-        if !hits.is_empty() {
-            //info!("update_grounded: entity = {:?}, is_grounded = {}, o_grounded = {:?}, hits={:?}", entity, is_grounded, o_grounded, hits);
-        }
+    for (entity, hits, velocity, o_grounded) in &q_athletic_base {
+        let has_upper_velocity = velocity.0.y > 0.001;
+        let is_grounded = !has_upper_velocity
+            && hits.iter().any(|hit| {
+                const MAX_ANGLE: f32 = PI * 0.45;
+                Vec3::Y.angle_between(-hit.normal2).abs() <= MAX_ANGLE
+            });
 
         if *l_last != is_grounded {
             info!(
-                "update_grounded: entity = {:?}, is_grounded = {}, o_grounded = {:?}, hits={:?}",
-                entity, is_grounded, o_grounded, hits
+                "update_grounded: entity = {:?}, velocity = {:?}, is_grounded = {}, o_grounded = {:?}, hits={:?}",
+                entity, velocity, is_grounded, o_grounded, hits
             );
         }
         *l_last = is_grounded;
@@ -155,112 +206,113 @@ fn update_grounded(
                     elapsed: *elapsed + time.delta_secs(),
                 });
             }
-            (Some(Grounded::Standing), false) => {
-                // No change
-            }
-            (Some(Grounded::Takeoff { elapsed }), true) => {
-                commands.entity(entity).try_insert(Grounded::Takeoff {
+            (Some(Grounded::Crunting { elapsed }), true) => {
+                commands.entity(entity).try_insert(Grounded::Crunting {
                     elapsed: *elapsed + time.delta_secs(),
                 });
             }
             (None, true) => {
+                // just landed
                 commands
                     .entity(entity)
-                    .try_insert(Grounded::Landing { elapsed: 0.0 });
-                notification_writer.write(AthleticNotification {
-                    athrethic_base: entity,
-                    info: AthleticNotificationInfo::StartLanding,
-                });
+                    .try_insert(Grounded::Landing { elapsed: 0.0 })
+                    .trigger(StartLanding);
             }
             (None, false) => {
-
-                commands.entity(entity).try_remove::<Grounded>();
-
-                if o_grounded.is_some() {
-                    notification_writer.write(AthleticNotification {
-                        athrethic_base: entity,
-                        info: AthleticNotificationInfo::StartInAir { is_jumping: false },
-                    });
-                }
+                // still in air, no change
             }
-            _ => {}
+            (Some(_), false) => {
+                // at this point, the character is in the air
+                commands
+                    .entity(entity)
+                    .try_remove::<Grounded>()
+                    .trigger(StartInAir);
+            }
+            (Some(Grounded::Standing), true) => {
+                // do nothing, still standing
+            }
         }
     }
 }
 
 // TODO: It should use the time of the landing motion & push off motion to determine when to change the state, instead of a hardcoded value
 // I'm planing to use the events from Gltf animation for this
-fn update_langing_and_push_off(
-    mut commands: Commands,
-    mut q_athletic_base: Query<(Entity, &AthleticController, &Grounded, &JumpImpulse, Forces)>,
-    mut notification_writer: MessageWriter<AthleticNotification>,
-) {
-    //info!("update_langing_and_push_off: q_athletic_base.len() = {}", q_athletic_base.iter().len());
-    const LANDING_DURATION: f32 = 0.1;
-    const PUSH_OFF_DURATION: f32 = 0.1;
-    for (entity, _base, grounded, jump_impulse, mut force) in &mut q_athletic_base {
-        match grounded {
-            Grounded::Landing { elapsed } if *elapsed > LANDING_DURATION => {
-                commands.entity(entity).try_insert(Grounded::Standing);
-                notification_writer.write(AthleticNotification {
-                    athrethic_base: entity,
-                    info: AthleticNotificationInfo::StartStanding,
-                });
-            }
-            Grounded::Takeoff { elapsed } if *elapsed > PUSH_OFF_DURATION => {
-                commands.entity(entity).try_remove::<Grounded>();
-
-                // Jump
-                force.apply_linear_impulse(Vec3::Y * jump_impulse.0);
-
-                notification_writer.write(AthleticNotification {
-                    athrethic_base: entity,
-                    info: AthleticNotificationInfo::StartInAir { is_jumping: true },
-                });
-            }
-            _ => {}
-        }
-    }
-}
+// fn update_langing_and_push_off(
+//     mut commands: Commands,
+//     mut q_athletic_base: Query<(Entity, &Grounded), With<AthleticController>>,
+// ) {
+//     //info!("update_langing_and_push_off: q_athletic_base.len() = {}", q_athletic_base.iter().len());
+//     const LANDING_DURATION: f32 = 0.1;
+//     const PUSH_OFF_DURATION: f32 = 0.1;
+//     for (entity, grounded) in &mut q_athletic_base {
+//         match grounded {
+//             Grounded::Landing { elapsed } if *elapsed > LANDING_DURATION => {
+//                 commands.entity(entity).get_standing();
+//             }
+//             Grounded::Crunting { elapsed } if *elapsed > PUSH_OFF_DURATION => {
+//                 commands.entity(entity).jump();
+//             }
+//             _ => {}
+//         }
+//     }
+// }
 
 fn movement(
     mut commands: Commands,
-    mut q_athletic_base: Query<(Entity, &AthleticController, Option<&Grounded>)>,
-    mut movement_reader: MessageReader<MovmentIndication>,
-    mut notification_writer: MessageWriter<AthleticNotification>,
+    mut q_athletic_base: Query<(Entity, &AthleticController, Option<&Grounded>), With<PlayerController>>,
+    mut player_indication_reader: MessageReader<PlayerIndication>,
 ) {
-    for movement in movement_reader.read() {
-        let Ok((entity, _base, o_grounded)) = q_athletic_base.get_mut(movement.athrethic_base)
-        else {
-            continue;
-        };
-        if let (MovementAction::Jump, Some(Grounded::Standing)) =
-            (movement.action.clone(), o_grounded)
-        {
-            commands
-                .entity(entity)
-                .try_insert(Grounded::Takeoff { elapsed: 0.0 });
-            notification_writer.write(AthleticNotification {
-                athrethic_base: entity,
-                info: AthleticNotificationInfo::StartTakeoff,
-            });
+    for movement in player_indication_reader.read() {
+        for (entity, _base, o_grounded) in &mut q_athletic_base {
+            if let (PlayerIndicationType::Jump, Some(Grounded::Standing)) =
+                (movement.action.clone(), o_grounded)
+            {
+                commands
+                    .entity(entity)
+                    .try_insert(Grounded::Crunting { elapsed: 0.0 })
+                    .trigger(StartTakeoff)
+                    ;
+            }
         }
+        // let Ok((entity, _base, o_grounded)) = q_athletic_base.get_mut(player_character.control)
+        // else {
+        //     continue;
+        // };
+        // if let (PlayerIndicationType::Jump, Some(Grounded::Standing)) =
+        //     (movement.action.clone(), o_grounded)
+        // {
+        //     commands
+        //         .entity(entity)
+        //         .try_insert(Grounded::Crunting { elapsed: 0.0 })
+        //         .trigger(StartTakeoff)
+        //         ;
+        // }
     }
 }
 
-fn debug_print_grounded(q_athletic_base: Query<(Entity, &AthleticController, Option<&Grounded>, &GlobalTransform)>) {
+fn debug_print_grounded(
+    q_athletic_base: Query<(
+        Entity,
+        &AthleticController,
+        Option<&Grounded>,
+        &GlobalTransform,
+    )>,
+) {
     for (entity, _base, o_grounded, g_trans) in &q_athletic_base {
-        info!(
+        debug!(
             "AthleticController: {:?} - {:?} - {:?}",
-            entity, o_grounded, g_trans.translation());
-    }
-}
-
-fn debug_print_notifications(mut notification_reader: MessageReader<AthleticNotification>) {
-    for notification in notification_reader.read() {
-        info!(
-            "AthleticNotification: {:?} - {:?}",
-            notification.athrethic_base, notification.info
+            entity,
+            o_grounded,
+            g_trans.translation()
         );
     }
 }
+
+// fn debug_print_notifications(mut notification_reader: MessageReader<AthleticNotification>) {
+//     for notification in notification_reader.read() {
+//         info!(
+//             "AthleticNotification: {:?} - {:?}",
+//             notification.athrethic_base, notification.info
+//         );
+//     }
+// }

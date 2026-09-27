@@ -1,5 +1,5 @@
 use avian3d::prelude::*;
-use bevy::{color::palettes::css, input::keyboard::Key, math::VectorSpace, prelude::*};
+use bevy::{color::palettes::css, input::keyboard::Key, prelude::*};
 
 mod character_control;
 mod sample;
@@ -20,7 +20,7 @@ fn main() {
             character_control::CharacterControlPlugin,
             sample::SamplePlugin,
             PhysicsPlugins::default(),
-            PhysicsDebugPlugin::default(),
+            PhysicsDebugPlugin,
         ))
         .add_systems(Startup, setup)
         .add_systems(Update, jump_up_samples)
@@ -130,8 +130,6 @@ fn jump_up_samples(
     mut q_sample: Query<(Entity, Forces), With<Sample>>,
 
     key_input: Res<ButtonInput<Key>>,
-
-    time: Res<Time>,
 ) {
     if key_input.just_pressed(Key::Character("1".into())) {
         for (_sample_entity, mut forces) in &mut q_sample {
@@ -139,13 +137,4 @@ fn jump_up_samples(
             forces.apply_linear_impulse(v);
         }
     }
-    //
-    // if key_input.just_pressed(Key::Character("2".into())) {
-    //     for (_sample_entity, mut forces) in &mut q_sample {
-    //         let s = time.elapsed_secs().sin();
-    //         let c = time.elapsed_secs().cos();
-    //         let torque = Vec3::new(s, 0.0, c) * 100.;
-    //         forces.apply_torque(torque);
-    //     }
-    // }
 }

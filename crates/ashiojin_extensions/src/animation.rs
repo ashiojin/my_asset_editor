@@ -39,6 +39,9 @@ pub struct AnimationGraphHelper {
 
     /// Clip name -> node idx
     clip_name_to_node_idx_list: HashMap<String, Vec<AnimationNodeIndex>>,
+
+    /// Clip name -> handle
+    clip_name_to_handle: HashMap<String, Handle<AnimationClip>>,
 }
 
 /// Helper to store some useful information about the animation graph
@@ -49,10 +52,12 @@ impl AnimationGraphHelper {
     pub fn new(
         node_id_to_idx: HashMap<String, AnimationNodeIndex>,
         clip_name_to_node_idx_list: HashMap<String, Vec<AnimationNodeIndex>>,
+        clip_name_to_handle: HashMap<String, Handle<AnimationClip>>
     ) -> Self {
         Self {
             node_id_to_idx,
             clip_name_to_node_idx_list,
+            clip_name_to_handle,
         }
     }
 
@@ -62,6 +67,10 @@ impl AnimationGraphHelper {
 
     pub fn clip_name_to_node_idx(&self) -> &HashMap<String, Vec<AnimationNodeIndex>> {
         &self.clip_name_to_node_idx_list
+    }
+
+    pub fn clip_name_to_handle(&self) -> &HashMap<String, Handle<AnimationClip>> {
+        &self.clip_name_to_handle
     }
 }
 
@@ -165,6 +174,7 @@ fn apply_anim_graph(
         // Make animation graph
         let mut graph = AnimationGraph::new();
         let mut clip_name_to_node_idx = HashMap::new();
+        let mut clip_name_to_handle = HashMap::new();
         let mut node_indices = HashMap::new();
         node_indices.insert(root_node_name.clone(), graph.root);
 
@@ -267,6 +277,7 @@ fn apply_anim_graph(
                         clip_name_to_node_idx.entry(clip_node_desc.clip.clone())
                             .or_insert_with(Vec::new)
                             .push(node_index);
+                        clip_name_to_handle.insert(clip_node_desc.clip.clone(), h_clip.clone());
 
                         node_index
                     }
@@ -326,7 +337,7 @@ fn apply_anim_graph(
         }
 
         commands.entity(link_to_player.player_entity()).try_insert((
-            AnimationGraphHelper::new(node_indices, clip_name_to_node_idx),
+            AnimationGraphHelper::new(node_indices, clip_name_to_node_idx, clip_name_to_handle),
             AnimationGraphHandle(animation_graphs.add(graph)),
         ));
         commands
