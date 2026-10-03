@@ -1,5 +1,8 @@
 use bevy::{platform::collections::HashMap, prelude::*};
 
+pub mod command_desc;
+pub mod event_desc;
+
 #[derive(Default, Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AnimationGraphDesc {
     pub nodes: HashMap<String, NodeDesc>,

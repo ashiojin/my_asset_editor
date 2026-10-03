@@ -10,6 +10,12 @@ use crate::{
 
 pub mod graph_desc;
 
+mod command;
+mod event;
+
+pub use command::{AnimationGraphCommandsDesc, AnimationGraphCommandRequest};
+pub use event::{AnimationGraphEventsDesc, ClipNodeEvent};
+
 #[derive(Default, Debug)]
 pub struct AnimationGraphPlugin {
     _debug_mode: bool, // TODO: add systems that check invariants when debug_mode is true
@@ -19,7 +25,14 @@ impl Plugin for AnimationGraphPlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(scene_spawned);
 
-        app.add_systems(Update, apply_anim_graph);
+        app.add_systems(
+            Update,
+            (
+                apply_anim_graph, 
+                 command::apply_anim_graph_commands_desc,
+                 event::apply_anim_graph_events_desc,
+                 ),
+        );
     }
 }
 
@@ -34,8 +47,10 @@ impl LinkToAnimationPlayer {
 
 #[derive(Component, Debug)]
 pub struct AnimationGraphHelper {
-    /// Name of clip node -> its idx and clip name
+    /// Name of node -> its idx
     node_id_to_idx: HashMap<String, AnimationNodeIndex>,
+
+    node_idx_to_clip_handle: HashMap<AnimationNodeIndex, Handle<AnimationClip>>,
 
     /// Clip name -> node idx
     clip_name_to_node_idx_list: HashMap<String, Vec<AnimationNodeIndex>>,
@@ -52,10 +67,19 @@ impl AnimationGraphHelper {
     pub fn new(
         node_id_to_idx: HashMap<String, AnimationNodeIndex>,
         clip_name_to_node_idx_list: HashMap<String, Vec<AnimationNodeIndex>>,
-        clip_name_to_handle: HashMap<String, Handle<AnimationClip>>
+        clip_name_to_handle: HashMap<String, Handle<AnimationClip>>,
     ) -> Self {
+        let mut node_idx_to_clip_handle = HashMap::new();
+        for (clip_name, node_idx_list) in &clip_name_to_node_idx_list {
+            if let Some(node_idx) = node_idx_list.first()
+                && let Some(handle) = clip_name_to_handle.get(clip_name)
+            {
+                node_idx_to_clip_handle.insert(*node_idx, handle.clone());
+            }
+        }
         Self {
             node_id_to_idx,
+            node_idx_to_clip_handle,
             clip_name_to_node_idx_list,
             clip_name_to_handle,
         }
@@ -63,6 +87,10 @@ impl AnimationGraphHelper {
 
     pub fn node_id_to_idx(&self) -> &HashMap<String, AnimationNodeIndex> {
         &self.node_id_to_idx
+    }
+
+    pub fn node_idx_to_clip_handle(&self) -> &HashMap<AnimationNodeIndex, Handle<AnimationClip>> {
+        &self.node_idx_to_clip_handle
     }
 
     pub fn clip_name_to_node_idx(&self) -> &HashMap<String, Vec<AnimationNodeIndex>> {
@@ -101,7 +129,6 @@ fn scene_spawned(
 #[derive(Component, Debug)]
 #[require(NotYetExtacted<AnimationGraphSource>)]
 pub struct AnimationGraphSource(AnimationGraphDesc);
-
 
 impl AnimationGraphSource {
     pub fn new(desc: AnimationGraphDesc) -> Self {
@@ -274,7 +301,8 @@ fn apply_anim_graph(
                             )
                         };
 
-                        clip_name_to_node_idx.entry(clip_node_desc.clip.clone())
+                        clip_name_to_node_idx
+                            .entry(clip_node_desc.clip.clone())
                             .or_insert_with(Vec::new)
                             .push(node_index);
                         clip_name_to_handle.insert(clip_node_desc.clip.clone(), h_clip.clone());
@@ -343,6 +371,5 @@ fn apply_anim_graph(
         commands
             .entity(entity)
             .try_remove::<NotYetExtacted<AnimationGraphSource>>();
-
     }
 }
