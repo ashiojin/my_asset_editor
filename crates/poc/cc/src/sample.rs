@@ -1,7 +1,5 @@
 use crate::character_control::*;
-use ashiojin_extensions::animation::{
-    AnimationGraphHelper, AnimationGraphSource, LinkToAnimationPlayer,
-};
+use ashiojin_extensions::animation::AnimationGraphSource;
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
@@ -90,77 +88,6 @@ fn spawn_sample_character(mut commands: Commands, store: Res<GltfStore>, gltf: R
             ),
         )
         .id();
-    #[derive(Debug)]
-    enum AnimeType {
-        Idle,
-        InAir,
-        Landing,
-        Crunting,
-    }
-    let play_animation = move |anim_type: AnimeType,
-                               q_link_to_player: Query<&LinkToAnimationPlayer>,
-                               mut q_player: Query<(
-        &mut AnimationPlayer,
-        &AnimationGraphHandle,
-        &AnimationGraphHelper,
-    )>| {
-        info!("Received request to play animation: {:?}", anim_type);
-        // play landing animation
-        if let Ok(link) = q_link_to_player.get(app_id)
-            && let Ok((mut anim_player, _graph_handle, graph_helper)) =
-                q_player.get_mut(link.player_entity())
-        {
-            let nid_landing = graph_helper
-                .node_id_to_idx()
-                .get("clip_3")
-                .expect("Landing node not found");
-            let nid_inair = graph_helper
-                .node_id_to_idx()
-                .get("clip_2")
-                .expect("InAir node not found");
-            let nid_crunting = graph_helper
-                .node_id_to_idx()
-                .get("clip_1")
-                .expect("Crunting node not found");
-            let nid_idle = graph_helper
-                .node_id_to_idx()
-                .get("clip_0")
-                .expect("Idle node not found");
-            match anim_type {
-                AnimeType::Idle => {
-                    info!("Playing Idle animation");
-                    anim_player.play(*nid_idle).repeat();
-                    for nid in [*nid_inair, *nid_crunting, *nid_landing] {
-                        anim_player.stop(nid);
-                    }
-                }
-                AnimeType::InAir => {
-                    info!("Playing InAir animation");
-                    anim_player.play(*nid_inair).repeat();
-                    for nid in [*nid_idle, *nid_crunting, *nid_landing] {
-                        anim_player.stop(nid);
-                    }
-                }
-                AnimeType::Landing => {
-                    info!("Playing Landing animation");
-                    let a = anim_player.start(*nid_landing);
-                    info!("Landing animation started: {:?}", a);
-                    for nid in [*nid_inair, *nid_crunting, *nid_idle] {
-                        anim_player.stop(nid);
-                    }
-                }
-                AnimeType::Crunting => {
-                    info!("Playing Crunting animation");
-                    anim_player.start(*nid_crunting);
-                    for nid in [*nid_inair, *nid_landing, *nid_idle] {
-                        anim_player.stop(nid);
-                    }
-                }
-            }
-        } else {
-            info!("AnimationPlayer not found for the sample character");
-        }
-    };
 
     let id = commands
         .spawn((
@@ -176,89 +103,75 @@ fn spawn_sample_character(mut commands: Commands, store: Res<GltfStore>, gltf: R
         ))
         .add_child(col_id)
         .add_child(app_id)
-        .observe(
-            move |_ev: On<StartLanding>,
-                  q_link_to_player: Query<&LinkToAnimationPlayer>,
-                  q_player: Query<(
-                &mut AnimationPlayer,
-                &AnimationGraphHandle,
-                &AnimationGraphHelper,
-            )>| {
-                play_animation(AnimeType::Landing, q_link_to_player, q_player);
-            },
-        )
-        .observe(
-            move |_ev: On<StartTakeoff>,
-                  q_link_to_player: Query<&LinkToAnimationPlayer>,
-                  q_player: Query<(
-                &mut AnimationPlayer,
-                &AnimationGraphHandle,
-                &AnimationGraphHelper,
-            )>| {
-                play_animation(AnimeType::Crunting, q_link_to_player, q_player);
-            },
-        )
-        .observe(
-            move |_ev: On<StartInAir>,
-                  q_link_to_player: Query<&LinkToAnimationPlayer>,
-                  q_player: Query<(
-                &mut AnimationPlayer,
-                &AnimationGraphHandle,
-                &AnimationGraphHelper,
-            )>| {
-                play_animation(AnimeType::InAir, q_link_to_player, q_player);
-            },
-        )
-        .observe(
-            move |_ev: On<StartStanding>,
-                  q_link_to_player: Query<&LinkToAnimationPlayer>,
-                  q_player: Query<(
-                &mut AnimationPlayer,
-                &AnimationGraphHandle,
-                &AnimationGraphHelper,
-            )>| {
-                play_animation(AnimeType::Idle, q_link_to_player, q_player);
-            },
-        )
+        .observe(move |_ev: On<StartLanding>, mut commands: Commands| {
+            commands.entity(app_id).queue(
+                ashiojin_extensions::animation::AnimationGraphCommandRequest(
+                    "into-landing".to_string(),
+                ),
+            );
+        })
+        .observe(move |_ev: On<StartTakeoff>, mut commands: Commands| {
+            commands.entity(app_id).queue(
+                ashiojin_extensions::animation::AnimationGraphCommandRequest(
+                    "into-takeoff".to_string(),
+                ),
+            );
+        })
+        .observe(move |_ev: On<StartStanding>, mut commands: Commands| {
+            commands.entity(app_id).queue(
+                ashiojin_extensions::animation::AnimationGraphCommandRequest(
+                    "into-idle".to_string(),
+                ),
+            );
+        })
+        .observe(move |_ev: On<StartInAir>, mut commands: Commands| {
+            commands.entity(app_id).queue(
+                ashiojin_extensions::animation::AnimationGraphCommandRequest(
+                    "into-inair".to_string(),
+                ),
+            );
+        })
         .id();
 
     commands.entity(app_id).insert(LinkToController::new(id));
-        commands.entity(app_id)
-            //.try_insert(event_desc)
-            .observe(|
-                trigger: On<ashiojin_extensions::animation::ClipNodeEvent>,
-                mut commands: Commands,
-                q_link_to_controller: Query<&LinkToController>,
-                | {
-                    info!("Received animation event: {:?}", trigger);
-                    let link = q_link_to_controller.get(trigger.entity())
-                        .expect("LinkToController not found for the entity");
+    commands
+        .entity(app_id)
+        //.try_insert(event_desc)
+        .observe(
+            |trigger: On<ashiojin_extensions::animation::ClipNodeEvent>,
+             mut commands: Commands,
+             q_link_to_controller: Query<&LinkToController>| {
+                info!("Received animation event: {:?}", trigger);
+                let link = q_link_to_controller
+                    .get(trigger.entity())
+                    .expect("LinkToController not found for the entity");
 
-                    match trigger.event_name() {
-                        "landing-end" => {
-                            info!("Landing animation finished for entity: {:?}", trigger.entity());
-                            commands
-                                .entity(link.controller_entity())
-                                .get_standing();
-                        }
-                        "jumping" => {
-                            info!("Crunting animation at jumping for entity: {:?}", trigger.entity());
-                            commands
-                                .entity(link.controller_entity())
-                                .jump();
-                        }
-                        _ => {
-                            warn!(
-                                "Ignored unknown event name: {} for entity: {:?}(controller:{:?})",
-                                trigger.event_name(),
-                                trigger.entity(),
-                                link.controller_entity()
-                            );
-                        }
+                match trigger.event_name() {
+                    "landing-end" => {
+                        info!(
+                            "Landing animation finished for entity: {:?}",
+                            trigger.entity()
+                        );
+                        commands.entity(link.controller_entity()).get_standing();
                     }
-            })
-            ;
+                    "jumping" => {
+                        info!(
+                            "Crunting animation at jumping for entity: {:?}",
+                            trigger.entity()
+                        );
+                        commands.entity(link.controller_entity()).jump();
+                    }
+                    _ => {
+                        warn!(
+                            "Ignored unknown event name: {} for entity: {:?}(controller:{:?})",
+                            trigger.event_name(),
+                            trigger.entity(),
+                            link.controller_entity()
+                        );
+                    }
+                }
+            },
+        );
 
     commands.set_state(SampleState::Idle);
 }
-

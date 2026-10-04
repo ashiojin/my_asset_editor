@@ -1,8 +1,6 @@
 use bevy::{platform::collections::HashMap, prelude::*};
 
-use crate::animation::AnimationGraphHelper;
-use crate::animation::graph_desc::command_desc::{CommandsDesc, HasCommandTarget};
-use crate::common::NotYetExtacted;
+use crate::animation::LinkToAnimationPlayer;
 
 #[derive(Debug, Clone)]
 pub enum Command {
@@ -18,9 +16,25 @@ pub struct Play {
     speed: f32,
 }
 
+impl Play {
+    pub fn new(target_node: AnimationNodeIndex, repeat: bool, speed: f32) -> Self {
+        Self {
+            target_node,
+            repeat,
+            speed,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Stop {
     target_node: AnimationNodeIndex,
+}
+
+impl Stop {
+    pub fn new(target_node: AnimationNodeIndex) -> Self {
+        Self { target_node }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -29,66 +43,27 @@ pub struct SetWeight {
     weight: f32, // TODO: It has a same problem as Play.speed
 }
 
+impl SetWeight {
+    pub fn new(target_node: AnimationNodeIndex, weight: f32) -> Self {
+        Self {
+            target_node,
+            weight,
+        }
+    }
+}
+
 /// A component that stores the description of animation graph commands for an entity.
 ///
 /// It is handled by internal system automatically, and enables the user to emit `AnimationGraphCommandRequest` to the entity to control the animation graph.
-#[derive(Component, Debug)]
-#[require(NotYetExtacted<AnimationGraphCommandsDesc>)]
-pub struct AnimationGraphCommandsDesc(Vec<CommandsDesc>);
+// #[derive(Component, Debug)]
+// #[require(NotYetExtacted<AnimationGraphCommandsDesc>)]
+// pub struct AnimationGraphCommandsDesc(Vec<CommandsDesc>);
 
 #[derive(Component, Debug)]
 pub struct DefinedAnimationGraphCommands(HashMap<String, Vec<Command>>);
-
-pub fn apply_anim_graph_commands_desc(
-    mut commands: Commands,
-    q_not_yet: Query<
-        (Entity, &AnimationGraphCommandsDesc, &AnimationGraphHelper),
-        With<NotYetExtacted<AnimationGraphCommandsDesc>>,
-    >,
-) {
-    use crate::animation::graph_desc::command_desc;
-    for (entity, desc, helper) in &q_not_yet {
-        let mut defined_commands = HashMap::new();
-        for desc in &desc.0 {
-            let mut commands = Vec::new();
-            for command_desc in desc.list() {
-                let node_idx = *helper
-                    .node_id_to_idx()
-                    .get(command_desc.target_node())
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "target node {} (in {}) not found in animation graph",
-                            command_desc.target_node(),
-                            desc.name()
-                        )
-                    });
-
-                let command = match command_desc {
-                    command_desc::CommandDesc::Play(play) => Command::Play(Play {
-                        target_node: node_idx,
-                        repeat: play.repeat(),
-                        speed: play.speed(),
-                    }),
-                    command_desc::CommandDesc::Stop(_stop) => Command::Stop(Stop {
-                        target_node: node_idx,
-                    }),
-                    command_desc::CommandDesc::SetWeight(set_weight) => {
-                        Command::SetWeight(SetWeight {
-                            target_node: node_idx,
-                            weight: set_weight.weight(),
-                        })
-                    }
-                };
-                commands.push(command);
-            }
-
-            defined_commands.insert(desc.name().to_string(), commands);
-        }
-
-        commands
-            .entity(entity)
-            .try_insert(DefinedAnimationGraphCommands(defined_commands))
-            .try_remove::<NotYetExtacted<AnimationGraphCommandsDesc>>();
+impl DefinedAnimationGraphCommands {
+    pub fn new(defined_commands: HashMap<String, Vec<Command>>) -> Self {
+        Self(defined_commands)
     }
 }
 
@@ -138,15 +113,38 @@ impl EntityCommand for AnimationGraphCommandRequest {
 
             (player_commands, graph_commands)
         };
+        let player_entity = {
+            let Some(link_to_player) = entity.get_components::<&LinkToAnimationPlayer>().ok()
+            else {
+                error!(
+                    "entity {:?} does not have LinkToAnimationPlayer component",
+                    id
+                );
+                return;
+            };
+            link_to_player.player_entity()
+        };
 
         {
-            let Ok(graph_handle) = entity.get_components::<&AnimationGraphHandle>().cloned() else {
+            let Some(graph_handle) = entity.world_scope(|world| {
+                let entity = world.entity(player_entity);
+                entity.get_components::<&AnimationGraphHandle>().cloned().ok()
+            }) else {
                 error!(
                     "entity {:?} does not have AnimationGraphHandle component",
                     id
                 );
                 return;
             };
+
+
+            // let Ok(graph_handle) = entity.get_components::<&AnimationGraphHandle>().cloned() else {
+            //     error!(
+            //         "entity {:?} does not have AnimationGraphHandle component",
+            //         id
+            //     );
+            //     return;
+            // };
 
             let Some(mut graphs) = entity.get_resource_mut::<Assets<AnimationGraph>>() else {
                 error!(
@@ -176,11 +174,15 @@ impl EntityCommand for AnimationGraphCommandRequest {
             }
         }
 
-        {
-            let Some(mut player) = entity.get_components_mut::<&mut AnimationPlayer>().ok() else {
+        entity.world_scope(|world| {
+            let mut player_entity = world.entity_mut(player_entity);
+            let Some(mut player) = player_entity
+                .get_components_mut::<&mut AnimationPlayer>()
+                .ok()
+            else {
                 error!(
                     "entity {:?} does not have AnimationGraphPlayer component",
-                    id
+                    player_entity.id()
                 );
                 return;
             };
@@ -198,6 +200,6 @@ impl EntityCommand for AnimationGraphCommandRequest {
                     }
                 }
             }
-        }
+        });
     }
 }

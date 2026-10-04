@@ -6,9 +6,7 @@ use bevy::{
 };
 
 use crate::{
-    SceneArmatureBonePaths, SourceGltfHandle,
-    animation::{event::InnerClipEvent, graph_desc::AnimationGraphDesc},
-    common::NotYetExtacted,
+    SceneArmatureBonePaths, SourceGltfHandle, animation::{event::InnerClipEvent, graph_desc::{AnimationGraphDesc, command_desc::HasCommandTarget}}, common::NotYetExtacted,
 };
 
 pub mod graph_desc;
@@ -16,8 +14,8 @@ pub mod graph_desc;
 mod command;
 mod event;
 
-pub use command::{AnimationGraphCommandRequest, AnimationGraphCommandsDesc};
-pub use event::{ClipNodeEvent};
+pub use command::{AnimationGraphCommandRequest};
+pub use event::ClipNodeEvent;
 
 #[derive(Default, Debug)]
 pub struct AnimationGraphPlugin {
@@ -32,8 +30,7 @@ impl Plugin for AnimationGraphPlugin {
             Update,
             (
                 apply_anim_graph,
-                command::apply_anim_graph_commands_desc,
-                //event::apply_anim_graph_events_desc,
+                // command::apply_anim_graph_commands_desc,
             ),
         );
     }
@@ -383,6 +380,8 @@ fn apply_anim_graph(
         }
 
         // WARN: All commands for a description and mutations must be issued in the below code because we may cancel to process the description for some reason(e.g. not yet loaded gltf/animation clip) and wait for the preparation to be continued.
+
+        // for events
         for event_desc in &graph_desc.events {
             let node_idx = graph_helper
                 .node_id_to_idx()
@@ -510,10 +509,54 @@ fn apply_anim_graph(
                  }
              },
         );
+
+        // for commands
+        let mut defined_commands = HashMap::new();
+        for desc in &graph_desc.commands {
+            use graph_desc::command_desc;
+            let mut command_list = Vec::new();
+            for command_desc in desc.list() {
+                let node_idx = *graph_helper
+                    .node_id_to_idx()
+                    .get(command_desc.target_node())
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "target node {} (in {}) not found in animation graph",
+                            command_desc.target_node(),
+                            desc.name()
+                        )
+                    });
+
+                let command: command::Command = match command_desc {
+                    command_desc::CommandDesc::Play(play) => command::Command::Play(
+                        command::Play::new(node_idx, play.repeat(), play.speed()),
+                    ),
+                    command_desc::CommandDesc::Stop(_stop) => {
+                        command::Command::Stop(command::Stop::new(node_idx))
+                    }
+                    command_desc::CommandDesc::SetWeight(set_weight) => {
+                        command::Command::SetWeight(command::SetWeight::new(
+                            node_idx,
+                            set_weight.weight(),
+                        ))
+                    }
+                };
+                command_list.push(command);
+            }
+
+            defined_commands.insert(desc.name().to_string(), command_list);
+        }
+        commands
+            .entity(entity)
+            .try_insert(command::DefinedAnimationGraphCommands::new(defined_commands));
+
+        // for graph
         commands.entity(link_to_player.player_entity()).try_insert((
             graph_helper,
             AnimationGraphHandle(animation_graphs.add(graph)),
         ));
+
+        // processed!
         commands
             .entity(entity)
             .try_remove::<NotYetExtacted<AnimationGraphSource>>();

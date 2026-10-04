@@ -67,5 +67,98 @@
       "clipnode": "clip_0",
       "time": 0.5
     }
-  ]
+  ],
+  "commands": [
+    {
+      "name": "into-idle",
+      "list": [
+        {"Play": {
+          "target_node": "clip_0",
+          "repeat": true,
+          "speed": 1.0
+        }}
+        ,
+        {"Stop": {
+          "target_node": "clip_1"
+        }}
+        ,
+        {"Stop": {
+          "target_node": "clip_2"
+        }}
+        ,
+        {"Stop": {
+          "target_node": "clip_3"
+        }}
+      ]
+    }
+    ,
+    {
+      "name": "into-landing",
+      "list": [
+        {"Play": {
+          "target_node": "clip_3",
+          "repeat": false,
+          "speed": 1.0
+        }}
+        ,
+        {"Stop": {
+          "target_node": "clip_1"
+        }}
+        ,
+        {"Stop": {
+          "target_node": "clip_2"
+        }}
+        ,
+        {"Stop": {
+          "target_node": "clip_0"
+        }}
+      ]
+    }
+    ,
+    {
+      "name": "into-takeoff",
+      "list": [
+        {"Play": {
+          "target_node": "clip_1",
+          "repeat": false,
+          "speed": 1.0
+        }}
+        ,
+        {"Stop": {
+          "target_node": "clip_0"
+        }}
+        ,
+        {"Stop": {
+          "target_node": "clip_2"
+        }}
+        ,
+        {"Stop": {
+          "target_node": "clip_3"
+        }}
+      ]
+    }
+    ,
+    {
+      "name": "into-inair",
+      "list": [
+        {"Play": {
+          "target_node": "clip_2",
+          "repeat": true,
+          "speed": 1.0
+        }}
+        ,
+        {"Stop": {
+          "target_node": "clip_0"
+        }}
+        ,
+        {"Stop": {
+          "target_node": "clip_1"
+        }}
+        ,
+        {"Stop": {
+          "target_node": "clip_3"
+        }}
+      ]
+    }
+   ]
 }
