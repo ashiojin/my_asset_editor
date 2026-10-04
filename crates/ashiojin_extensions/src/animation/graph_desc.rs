@@ -1,5 +1,7 @@
 use bevy::{platform::collections::HashMap, prelude::*};
 
+use crate::animation::graph_desc::event_desc::ClipNodeEventDefinitionDesc;
+
 pub mod command_desc;
 pub mod event_desc;
 
@@ -8,6 +10,7 @@ pub struct AnimationGraphDesc {
     pub nodes: HashMap<String, NodeDesc>,
     pub edges: Vec<EdgeDesc>,
     pub mask_groups: MaskGroups,
+    pub events: Vec<ClipNodeEventDefinitionDesc>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

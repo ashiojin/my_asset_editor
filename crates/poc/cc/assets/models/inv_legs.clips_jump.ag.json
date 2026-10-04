@@ -48,5 +48,24 @@
       "dest": "root"
     }
   ],
-  "mask_groups": []
+  "mask_groups": [],
+  "events": [
+    {
+      "event": "landing-end",
+      "clipnode": "clip_3",
+      "time": 1.25
+    }
+    ,
+    {
+      "event": "jumping",
+      "clipnode": "clip_1",
+      "time": 0.25
+    }
+    ,
+    {
+      "event": "idle-0.5",
+      "clipnode": "clip_0",
+      "time": 0.5
+    }
+  ]
 }

@@ -6,6 +6,7 @@ export type ApiGraph = {
     nodes: ApiNodes,
     edges: ApiEdges,
     mask_groups: ApiMaskGroups,
+    events: ApiEvents,
 }
 
 export type ApiNodes = Record<string, ApiNode>
@@ -46,6 +47,13 @@ export type ApiMaskGroup = {
     targets: string[],
 }
 
+export type ApiEvents = ApiEvent[]
+export type ApiEvent = {
+    event: string,
+    clipnode: string,
+    time: number,
+}
+
 export function getCurrentGraph(): ApiGraph {
     const { getNodes, getEdges } = useVueFlow('animation_graph')
     const mask_group_store = useMaskGroupListStore()
@@ -75,6 +83,7 @@ export function getCurrentGraph(): ApiGraph {
 
     let api_nodes: ApiNodes = {}
     let api_edges: ApiEdges = []
+    let api_events: ApiEvents = []
 
     let map_id_to_label_id: Record<string, string> = {}
     for (let node of getNodes.value as MyGraphNode[]) {
@@ -90,6 +99,8 @@ export function getCurrentGraph(): ApiGraph {
                     }
                 }
                 map_id_to_label_id[node.id] = clip_data.label_id
+
+                // TODO: Clip node can emit events. Implement later
                 break
             case "blend":
                 const blend_data = node.data as BlendNodeData
@@ -133,6 +144,7 @@ export function getCurrentGraph(): ApiGraph {
         nodes: api_nodes,
         edges: api_edges,
         mask_groups: api_masks,
+        events: api_events,
     }
 }
 

@@ -1,10 +1,13 @@
 use bevy::{
-    animation::AnimationTargetId, platform::collections::HashMap, prelude::*,
+    animation::{AnimationTargetId, RepeatAnimation},
+    platform::collections::HashMap,
+    prelude::*,
     world_serialization::WorldInstanceReady,
 };
 
 use crate::{
-    SceneArmatureBonePaths, SourceGltfHandle, animation::graph_desc::AnimationGraphDesc,
+    SceneArmatureBonePaths, SourceGltfHandle,
+    animation::{event::InnerClipEvent, graph_desc::AnimationGraphDesc},
     common::NotYetExtacted,
 };
 
@@ -13,8 +16,8 @@ pub mod graph_desc;
 mod command;
 mod event;
 
-pub use command::{AnimationGraphCommandsDesc, AnimationGraphCommandRequest};
-pub use event::{AnimationGraphEventsDesc, ClipNodeEvent};
+pub use command::{AnimationGraphCommandRequest, AnimationGraphCommandsDesc};
+pub use event::{ClipNodeEvent};
 
 #[derive(Default, Debug)]
 pub struct AnimationGraphPlugin {
@@ -28,10 +31,10 @@ impl Plugin for AnimationGraphPlugin {
         app.add_systems(
             Update,
             (
-                apply_anim_graph, 
-                 command::apply_anim_graph_commands_desc,
-                 event::apply_anim_graph_events_desc,
-                 ),
+                apply_anim_graph,
+                command::apply_anim_graph_commands_desc,
+                //event::apply_anim_graph_events_desc,
+            ),
         );
     }
 }
@@ -152,6 +155,7 @@ fn apply_anim_graph(
     q_scene_root: Query<(Entity, &SceneArmatureBonePaths)>,
     q_children: Query<&Children>,
     mut animation_graphs: ResMut<Assets<AnimationGraph>>,
+    mut animatnion_clips: ResMut<Assets<AnimationClip>>,
 ) {
     use graph_desc::*;
 
@@ -363,9 +367,151 @@ fn apply_anim_graph(
                 break;
             }
         }
+        let graph_helper =
+            AnimationGraphHelper::new(node_indices, clip_name_to_node_idx, clip_name_to_handle);
 
+        // check if the AnimationClips are prepared to add events
+        for h_clip in graph_helper.node_idx_to_clip_handle().values() {
+            if !animatnion_clips.contains(h_clip) {
+                // it needs to wait for the preparation to be continued.
+                info!(
+                    "AnimationClip {:?} is not yet prepared for {:?}",
+                    h_clip, entity
+                );
+                continue;
+            }
+        }
+
+        // WARN: All commands for a description and mutations must be issued in the below code because we may cancel to process the description for some reason(e.g. not yet loaded gltf/animation clip) and wait for the preparation to be continued.
+        for event_desc in &graph_desc.events {
+            let node_idx = graph_helper
+                .node_id_to_idx()
+                .get(event_desc.clipnode())
+                .unwrap_or_else(|| {
+                    panic!(
+                        "target node {} (in {}) not found in animation graph",
+                        event_desc.clipnode(),
+                        event_desc.event()
+                    )
+                });
+            let h_clip = graph_helper
+                .node_idx_to_clip_handle()
+                .get(node_idx)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "clip handle for node {} (in {}) not found in animation graph",
+                        event_desc.clipnode(),
+                        event_desc.event()
+                    )
+                });
+            let mut clip = animatnion_clips.get_mut(h_clip).unwrap_or_else(|| {
+                panic!(
+                    "clip for node {} (in {}) not found in animation graph",
+                    event_desc.clipnode(),
+                    event_desc.event()
+                )
+            });
+            clip.add_event(
+                event_desc.time(),
+                InnerClipEvent::new(
+                    event_desc.event().to_string(),
+                    entity,
+                    *node_idx,
+                    event_desc.time(),
+                ),
+            );
+            debug!(
+                "added event {} at time {} for node {} (entity {:?})",
+                event_desc.event(),
+                event_desc.time(),
+                event_desc.clipnode(),
+                entity
+            );
+        }
+        commands.add_observer(
+            |trigger: On<InnerClipEvent>,
+             mut commands: Commands,
+             q_link: Query<&LinkToAnimationPlayer>,
+             q_player: Query<(Entity, &AnimationPlayer)>| {
+
+
+                 info!(
+                     "received event {} for entity {:?} at time {} (target node: {:?})",
+                     trigger.event_name(),
+                     trigger.entity(),
+                     trigger.time(),
+                     trigger.target_node()
+                 );
+                 let Ok(link_to_player) = q_link.get(trigger.entity()) else {
+                     warn!(
+                         "entity {:?} does not have LinkToAnimationPlayer component",
+                         trigger.entity()
+                     );
+                     return;
+                 };
+                 let Ok((_entity, player)) = q_player.get(link_to_player.player_entity()) else {
+                     warn!(
+                         "entity {:?} does not have AnimationPlayer component",
+                         trigger.entity()
+                     );
+                     return;
+                 };
+
+                 let animation =  player.animation(trigger.target_node())
+                     .unwrap_or_else(|| {
+                         panic!(
+                             "animation for node {:?} not found in AnimationPlayer for entity {:?}",
+                             trigger.target_node(),
+                             trigger.entity()
+                         )
+                     });
+
+                 let last_seek_time = animation.last_seek_time();
+                 let seek_time = animation.seek_time();
+                 let repeat = animation.repeat_mode() != RepeatAnimation::Never;
+                 let completions = animation.completions();
+
+                 // patterns:
+                 // - completions > 1: it means the animation has completed at least once, so we can trigger the event
+                 // - completions == 1 && repeat: we should check [last_seek_time.or(0), duration] and [0, seek_time] to see if the event time is in either range
+                 // - completions == 1 && !repeat: we should check [last_seek_time.or(0), duration] to see if the event time is in that range
+                 // - completions == 0: we should check [last_seek_time.or(0), seek_time] to see if the event time is in that range
+
+                 let should_trigger = if completions > 1 {
+                     true
+                 } else if completions == 1 {
+                     if repeat {
+                         (last_seek_time.is_none_or(|lst| lst < trigger.time())
+                             && trigger.time() <= seek_time)
+                             || (trigger.time() <= seek_time
+                                 || last_seek_time.is_some_and(|lst| lst < trigger.time()))
+                     } else {
+                         last_seek_time.is_none_or(|lst| lst < trigger.time())
+                             && trigger.time() <= seek_time
+                     }
+                 } else {
+                     last_seek_time.is_none_or(|lst| lst < trigger.time())
+                         && trigger.time() <= seek_time
+                 };
+                 if should_trigger {
+                     debug!(
+                         "triggering event {} for entity {:?} at time {} (last_seek_time: {:?}, seek_time: {}, completions: {}, repeat: {})",
+                         trigger.event_name(),
+                         trigger.entity(),
+                         trigger.time(),
+                         last_seek_time,
+                         seek_time,
+                         completions,
+                         repeat
+                     );
+                     commands.entity(trigger.entity()).trigger(|e| {
+                         ClipNodeEvent::new(e, trigger.event_name().to_string(), trigger.clone())
+                     });
+                 }
+             },
+        );
         commands.entity(link_to_player.player_entity()).try_insert((
-            AnimationGraphHelper::new(node_indices, clip_name_to_node_idx, clip_name_to_handle),
+            graph_helper,
             AnimationGraphHandle(animation_graphs.add(graph)),
         ));
         commands

@@ -1,6 +1,6 @@
 use crate::character_control::*;
 use ashiojin_extensions::animation::{
-    AnimationGraphHelper, AnimationGraphSource, LinkToAnimationPlayer, graph_desc::event_desc::ClipNodeEventDefinitionDesc,
+    AnimationGraphHelper, AnimationGraphSource, LinkToAnimationPlayer,
 };
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -16,7 +16,6 @@ impl Plugin for SamplePlugin {
             (
                 spawn_sample_character.run_if(in_state(SampleState::WaitLoading)),
                 //initailize_around_animation_clips.run_if(in_state(SampleState::Idle)),
-                initailize_animation_events.run_if(in_state(SampleState::Idle)),
                 // debug_animation_playing_state.run_if(in_state(SampleState::Idle)),
             ),
         );
@@ -224,88 +223,42 @@ fn spawn_sample_character(mut commands: Commands, store: Res<GltfStore>, gltf: R
         .id();
 
     commands.entity(app_id).insert(LinkToController::new(id));
-
-    commands.set_state(SampleState::Idle);
-}
-
-fn initailize_animation_events(
-    mut commands: Commands,
-    q_linked: Query<(&LinkToAnimationPlayer, &LinkToController)>,
-    mut q_player: Query<
-        (
-            Entity,
-            &mut AnimationPlayer,
-            &AnimationGraphHandle,
-            &AnimationGraphHelper,
-        ),
-        Added<AnimationGraphHelper>,
-    >,
-) {
-    for (entity, mut _anim_player, _graph_handle, _graph_helper) in &mut q_player {
-        let Some((_, link_to_controller)) = q_linked
-            .iter()
-            .find(|(l_player, _)| l_player.player_entity() == entity)
-        else {
-            continue;
-        };
-
-        info!(
-            "Initializing animation clips for entity: {:?}, controller entity: {:?}",
-            entity,
-            link_to_controller.controller_entity()
-        );
-
-        // TODO: It should be included in the AnimationGraphDesc because the events are dependent
-        // on the animation graph: the node names, the timing of the events, etc.
-        let event_desc = ashiojin_extensions::animation::AnimationGraphEventsDesc::new(vec![
-            ClipNodeEventDefinitionDesc::new("landing-end".into(), "clip_3".into(), 1.25),
-            ClipNodeEventDefinitionDesc::new("jumping".into(), "clip_1".into(), 0.25),
-            ClipNodeEventDefinitionDesc::new("idle-0.5".into(), "clip_0".into(), 0.5), // it will be ignored because we don't handle this event in the observer
-        ]);
-
-        commands.entity(entity)
-            .try_insert(event_desc)
+        commands.entity(app_id)
+            //.try_insert(event_desc)
             .observe(|
                 trigger: On<ashiojin_extensions::animation::ClipNodeEvent>,
                 mut commands: Commands,
-                q_linked: Query<'_, '_, (&LinkToAnimationPlayer, &LinkToController)>,
+                q_link_to_controller: Query<&LinkToController>,
                 | {
                     info!("Received animation event: {:?}", trigger);
-                    let Some((_, link_to_controller)) = q_linked
-                        .iter()
-                        .find(|(l_player, _)| l_player.player_entity() == trigger.entity())
-                    else {
-                        error!(
-                            "LinkToController not found for entity: {:?} when handling event: {}",
-                            trigger.entity(),
-                            trigger.event_name()
-                        );
-                        return;
-                    };
+                    let link = q_link_to_controller.get(trigger.entity())
+                        .expect("LinkToController not found for the entity");
 
                     match trigger.event_name() {
                         "landing-end" => {
                             info!("Landing animation finished for entity: {:?}", trigger.entity());
                             commands
-                                .entity(link_to_controller.controller_entity())
+                                .entity(link.controller_entity())
                                 .get_standing();
                         }
                         "jumping" => {
                             info!("Crunting animation at jumping for entity: {:?}", trigger.entity());
                             commands
-                                .entity(link_to_controller.controller_entity())
+                                .entity(link.controller_entity())
                                 .jump();
                         }
                         _ => {
                             warn!(
-                                "Ignored unknown event name: {} for entity: {:?}",
+                                "Ignored unknown event name: {} for entity: {:?}(controller:{:?})",
                                 trigger.event_name(),
-                                trigger.entity()
+                                trigger.entity(),
+                                link.controller_entity()
                             );
                         }
                     }
             })
             ;
-    }
+
+    commands.set_state(SampleState::Idle);
 }
 
