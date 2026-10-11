@@ -2,6 +2,31 @@
 
 ## For the Next
 
+Next: migration to Bevy 0.20
+
+Next: Add turn & walk
+
+```mermaid
+stateDiagram-v2
+    InAir --> Grounding : Get Grounded
+    state Grounding {
+        [*] --> Landing
+        Landing --> Standing
+        Standing --> Crunting
+        Crunting --> [*]
+        Standing --> Walking
+        Standing --> Turning
+        Turning --> Walking
+        Walking --> Crunting
+
+        Walking --> Standing
+        Turning --> Standing
+
+        note right of Crunting : What if the character would not lost Grounded in `Crunting` ?
+    }
+    Grounding --> InAir : Lost Grounded
+```
+
 ### Controller & Graph connector
 
 - [ ] Transforms of Collider and ShapeCaster for the ground should be specfied
