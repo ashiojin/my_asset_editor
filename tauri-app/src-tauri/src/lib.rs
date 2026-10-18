@@ -83,11 +83,11 @@ enum ErrorIssueGraphCommands {
 #[tauri::command]
 async fn issue_graph_commands(
     state: State<'_, AppState>,
-    commands: Vec<previewer::anim_graph::AnimeGraphCommand>,
+    command_name: String,
 ) -> Result<(), ErrorIssueGraphCommands> {
     state
         .sender
-        .send(ToPrevewerCommand::IssueAnimGraphCommand { commands })
+        .send(ToPrevewerCommand::IssueAnimGraphCommand { name: command_name })
         .await
         .map_err(|e| SendError::new(e.to_string()))?;
     Ok(())

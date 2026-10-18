@@ -134,6 +134,10 @@ impl AnimationGraphSource {
     pub fn new(desc: AnimationGraphDesc) -> Self {
         Self(desc)
     }
+
+    pub fn desc(&self) -> &AnimationGraphDesc {
+        &self.0
+    }
 }
 
 fn apply_anim_graph(

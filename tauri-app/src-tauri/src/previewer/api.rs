@@ -9,9 +9,10 @@ pub enum ToPrevewerCommand {
     SetAnimGraph {
         anim_graph: anim_graph::AnimationGraphDesc,
     },
-    /// Issue Animation Graph Command
+
+    /// Issue Animation Graph Command by name
     IssueAnimGraphCommand {
-        commands: Vec<anim_graph::AnimeGraphCommand>,
+        name: String,
     },
 
     /// Save Animation Graph

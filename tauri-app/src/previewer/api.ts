@@ -7,6 +7,7 @@ export type ApiGraph = {
     edges: ApiEdges,
     mask_groups: ApiMaskGroups,
     events: ApiEvents,
+    commands: ApiCommands,
 }
 
 export type ApiNodes = Record<string, ApiNode>
@@ -52,6 +53,32 @@ export type ApiEvent = {
     event: string,
     clipnode: string,
     time: number,
+}
+
+export type ApiCommands = ApiCommand[]
+export type ApiCommand = {
+    name: string,
+    list: ApiGraphCommand[],
+}
+
+export type ApiGraphCommand = ApiGraphCommandPlay | ApiGraphCommandStop | ApiGraphCommandSetWeight
+export type ApiGraphCommandPlay = {
+    'Play': {
+        target_node: string,
+        repeat: boolean,
+        speed: number,
+    }
+}
+export type ApiGraphCommandStop = {
+    'Stop': {
+        target_node: string,
+    }
+}
+export type ApiGraphCommandSetWeight = {
+    'SetWeight': {
+        target_node: string,
+        weight: number,
+    }
 }
 
 export function getCurrentGraph(): ApiGraph {
@@ -145,40 +172,22 @@ export function getCurrentGraph(): ApiGraph {
         edges: api_edges,
         mask_groups: api_masks,
         events: api_events,
+        commands: [],
     }
 }
 
 
-// ================================================================
-// GRAPH COMMAND
-// ================================================================
-export type ApiGraphCommand = ApiPlayRepeatCommand | ApiStopPlayCommand | ApiSetWeightCommand
-
-type ApiPlayRepeatCommand = {
-    'PlayRepeat': string, // node name
-
-}
-type ApiStopPlayCommand = {
-    'StopPlay': string, // node name
-}
-type ApiSetWeightCommand = {
-    'SetWeight': [
-        string, // node name
-        Number, // weight
-    ]
-}
-
 export function convertToApiGraphCommand(command: GraphCommand): ApiGraphCommand {
     switch (command.type) {
         case GraphCommandType.PlayRepeat:
-            return { 'PlayRepeat': command.selected }
+            return { 'Play': { target_node: command.selected, repeat: true, speed: 1.0 } }
         case GraphCommandType.Stop:
-            return { 'StopPlay': command.selected }
+            return { 'Stop': { target_node: command.selected } }
         case GraphCommandType.Weight:
             if (command.weight > 1.0 || command.weight < 0.0) {
                 throw Error(`Illigal weight: ${command.weight}`)
             }
-            return { 'SetWeight': [command.selected, new Number(command.weight)] }
+            return { 'SetWeight': { target_node: command.selected, weight: command.weight } }
     }
 }
 

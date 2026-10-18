@@ -17,11 +17,19 @@ import MaskGroupManager from './MaskGroupManager.vue'
 import { GraphCommand, GraphCommandType, check_command, getDefault } from "./Command.ts"
 import { nullPreviewerState } from './ToolTypes.ts'
 
+import { ApiPreviewerState, convertToApiGraphCommand, getCurrentGraph, ApiCommands } from '../previewer/api.ts'
+import { usePreviewerState } from '../stores/PreviewState.ts'
+
 const { getNodes } = useVueFlow('animation_graph')
 const { onDragStart } = useDragAndDrop()
 
 const gltf_info = usePreviewerState()
+const queued_commands_name = ref("wip_command")
 const queued_commands = ref<GraphCommand[]>([])
+
+const defining_commans = ref<ApiCommands>([])
+
+const issue_command_name = ref<string| null>(null)
 
 const mask_target_list = ref<MaskTarget[]>([])
 
@@ -82,12 +90,11 @@ async function open_gltf() {
     }
 }
 
-import { ApiPreviewerState, convertToApiGraphCommand, getCurrentGraph } from '../previewer/api.ts'
-import { usePreviewerState } from '../stores/PreviewState.ts'
 
 async function send_graph() {
     try {
         const graph = getCurrentGraph()
+        graph.commands = defining_commans.value
         await invoke('set_graph', { graph })
 
     } catch (error) {
@@ -112,6 +119,7 @@ async function choose_path_and_save_graph() {
 async function save_graph(path: string) {
     try {
         const graph = getCurrentGraph()
+        graph.commands = defining_commans.value
         await invoke('save_graph', {
             path,
             graph,
@@ -143,10 +151,31 @@ async function send_command() {
             console.error('Send Command Failed', validation_result.filter(r => Result.isFailure(r)))
             return
         }
+        const command_name = queued_commands_name.value
         const command_list = queued_commands.value.map(c => convertToApiGraphCommand(c))
 
-        await invoke('issue_graph_commands', { commands: command_list })
+        // await invoke('add_graph_commands', {
+        //     command: {
+        //         name: command_name, list: command_list
+        //     }
+        // })
+        //
+        // await invoke('issue_graph_commands', {
+        //     commandName: command_name
+        // })
+        defining_commans.value.push({ name: command_name, list: command_list })
         queued_commands.value = []
+    } catch (error) {
+        console.error('Fetch failed', error)
+    }
+}
+
+async function issue_command() {
+    try {
+        const command_name = issue_command_name.value
+        await invoke('issue_graph_commands', {
+            commandName: command_name
+        })
     } catch (error) {
         console.error('Fetch failed', error)
     }
@@ -175,6 +204,7 @@ async function send_command() {
             <MaskGroupManager></MaskGroupManager>
         </div>
         <div class="command_queue">
+            <input v-model="queued_commands_name" placeholder="Command Name" />
             <div>
                 <ul>
                     <li v-for="(_command, idx) in queued_commands">
@@ -209,7 +239,17 @@ async function send_command() {
             <input type="button" @click="add_command(GraphCommandType.PlayRepeat)" value="Play">
             <input type="button" @click="add_command(GraphCommandType.Weight)" value="Weight">
             <input type="button" @click="add_command(GraphCommandType.Stop)" value="Stop">
-            <input type="button" @click="send_command" value="Send">
+            <input type="button" @click="send_command" value="Add">
+            <div>
+                <!-- <input v-model="issue_command_name" placeholder="Command Name" /> -->
+                <select v-model="issue_command_name">
+                    <option value="" disabled>Select a command</option>
+                    <option v-for="command in defining_commans" :key="command.name" :value="command.name">
+                        {{ command.name }}
+                    </option>
+                </select>
+                <input type="button" @click="issue_command" value="Issue Command">
+            </div>
         </div>
     </div>
 </template>

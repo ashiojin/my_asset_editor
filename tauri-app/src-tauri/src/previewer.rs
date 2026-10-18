@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use ashiojin_extensions::animation::{
-    AnimationGraphHelper, AnimationGraphSource, LinkToAnimationPlayer,
+    AnimationGraphCommandRequest, AnimationGraphSource,
 };
 use ashiojin_extensions::{GltfSceneLabel, SceneArmatureBonePaths};
 use bevy::window::WindowCloseRequested;
@@ -81,7 +81,9 @@ struct BevyAppStateResource {
 #[derive(Resource, Debug)]
 struct TauriAppHandle(pub AppHandle);
 
-pub fn run_bevy_app(app_handle: AppHandle) -> (Sender<ToPrevewerCommand>, Arc<RwLock<PreviewerState>>) {
+pub fn run_bevy_app(
+    app_handle: AppHandle,
+) -> (Sender<ToPrevewerCommand>, Arc<RwLock<PreviewerState>>) {
     let (sender, receiver) = channel::<api::ToPrevewerCommand>(100);
     let bevy_app_state = PreviewerState::default();
     let state = Arc::new(RwLock::new(bevy_app_state));
@@ -104,7 +106,6 @@ pub fn run_bevy_app(app_handle: AppHandle) -> (Sender<ToPrevewerCommand>, Arc<Rw
                     }),
                 ashiojin_extensions::AshiojinGltfExtensionsHandlerPlugin,
             ))
-            .add_message::<AnimeGraphCommand>()
             .add_message::<DebugCommand>()
             .insert_resource(FromApi { receiver })
             .insert_resource(BevyAppStateResource {
@@ -118,7 +119,6 @@ pub fn run_bevy_app(app_handle: AppHandle) -> (Sender<ToPrevewerCommand>, Arc<Rw
             .add_systems(Update, receive_api_commands)
             .add_systems(Update, spawn_scene_if_gltf_loaded)
             //            .add_systems(Update, apply_anim_graph)
-            .add_systems(Update, process_anime_commands)
             .add_systems(Update, debug_print_animation_targets_with_names)
             //           .add_observer(scene_spawned)
             .add_systems(Update, request_closing_window)
@@ -152,9 +152,6 @@ fn setup(mut commands: Commands) {
 struct CurrentScene;
 
 #[derive(Message, Debug)]
-struct AnimeGraphCommand(anim_graph::AnimeGraphCommand);
-
-#[derive(Message, Debug)]
 struct DebugCommand(String);
 
 #[allow(clippy::too_many_arguments)]
@@ -162,9 +159,8 @@ fn receive_api_commands(
     mut from_api: ResMut<FromApi>,
     mut bevy_app_state: ResMut<BevyAppStateResource>,
     mut commands: Commands,
-    q_current_scene: Query<Entity, With<CurrentScene>>,
+    q_current_scene: Query<(Entity, Option<&AnimationGraphSource>), With<CurrentScene>>,
     asset_server: Res<AssetServer>,
-    mut msgq_anim_graph_command: MessageWriter<AnimeGraphCommand>,
     mut msgq_debug_command: MessageWriter<DebugCommand>,
 ) {
     //info!("print_for_debug called");
@@ -174,7 +170,7 @@ fn receive_api_commands(
         match payload {
             api::ToPrevewerCommand::LoadGltf { gltf } => {
                 // Remove the current scene if it exists
-                for entity in q_current_scene.iter() {
+                for (entity, _) in q_current_scene.iter() {
                     commands.entity(entity).try_despawn();
                 }
                 info!("Loading GLTF: {}", gltf);
@@ -198,27 +194,38 @@ fn receive_api_commands(
             api::ToPrevewerCommand::SetAnimGraph { anim_graph } => {
                 info!("Setting animation graph: {:?}", anim_graph);
                 //anim_graph_desc.set_graph_desc(anim_graph);
-                let current_scene_entity = q_current_scene
+                let (current_scene_entity, _) = q_current_scene
                     .single()
                     .expect("There should be only one CurrentScene");
                 commands
                     .entity(current_scene_entity)
                     .try_insert((AnimationGraphSource::new(anim_graph),));
             }
-            api::ToPrevewerCommand::IssueAnimGraphCommand { commands: cmds } => {
-                info!("Issuing animation graph commands: {:?}", cmds);
-                for cmd in cmds {
-                    msgq_anim_graph_command.write(AnimeGraphCommand(cmd));
-                }
+            api::ToPrevewerCommand::IssueAnimGraphCommand { name } => {
+                info!("Issuing animation graph commands: {:?}", name);
+                let (current_scene_entity, _) = q_current_scene
+                    .single()
+                    .expect("There should be only one CurrentScene");
+                commands
+                    .entity(current_scene_entity)
+                    .queue(AnimationGraphCommandRequest(name));
             }
-            api::ToPrevewerCommand::SaveGraph { path, anim_graph, pretty } => {
+            api::ToPrevewerCommand::SaveGraph {
+                path,
+                anim_graph,
+                pretty,
+            } => {
                 info!("Saving animation graph to {}: {:?}", path, anim_graph);
                 if pretty {
-                    if let Err(err) = std::fs::write(&path, serde_json::to_string_pretty(&anim_graph).unwrap()) {
+                    if let Err(err) =
+                        std::fs::write(&path, serde_json::to_string_pretty(&anim_graph).unwrap())
+                    {
                         error!("Failed to save animation graph to {}: {:?}", path, err);
                     }
                 } else {
-                    if let Err(err) = std::fs::write(&path, serde_json::to_string(&anim_graph).unwrap()) {
+                    if let Err(err) =
+                        std::fs::write(&path, serde_json::to_string(&anim_graph).unwrap())
+                    {
                         error!("Failed to save animation graph to {}: {:?}", path, err);
                     }
                 }
@@ -235,11 +242,12 @@ fn request_closing_window(
     mut window_close_requested_events: MessageReader<WindowCloseRequested>,
     tauri_app_handle: Res<TauriAppHandle>,
 ) {
-    let primary_window_entity = q_primary_window.single().expect("There should be only one primary window");
-    let close_requested = window_close_requested_events.read().any(
-        |event| {
-            event.window == primary_window_entity
-        },);
+    let primary_window_entity = q_primary_window
+        .single()
+        .expect("There should be only one primary window");
+    let close_requested = window_close_requested_events
+        .read()
+        .any(|event| event.window == primary_window_entity);
     if close_requested {
         info!("Window close requested, sending event to Tauri");
 
@@ -253,7 +261,6 @@ fn request_closing_window(
         }
     }
 }
-
 
 fn spawn_scene_if_gltf_loaded(
     mut commands: Commands,
@@ -365,71 +372,7 @@ fn on_scene_ready(
     });
     bevy_app_state.cnt = bevy_app_state.cnt.wrapping_add(1);
 }
-fn process_anime_commands(
-    mut msgq_anim_graph_command: MessageReader<AnimeGraphCommand>,
-    q_controller: Query<&LinkToAnimationPlayer>,
-    mut q_player: Query<(
-        &mut AnimationPlayer,
-        &AnimationGraphHandle,
-        &AnimationGraphHelper,
-    )>,
-    mut anim_graphs: ResMut<Assets<AnimationGraph>>,
-) {
-    if msgq_anim_graph_command.is_empty() {
-        return;
-    }
-    let Ok(link_to_player) = q_controller.single() else {
-        warn!("No ControlPanel found, cannot process animation graph commands");
-        return;
-    };
-    let Ok((mut player, h_graph, graph_helper)) = q_player.get_mut(link_to_player.player_entity())
-    else {
-        warn!("No AnimationPlayer found, cannot process animation graph commands");
-        return;
-    };
-    let Some(mut graph) = anim_graphs.get_mut(h_graph) else {
-        warn!("No AnimationGraph found, cannot process animation graph commands");
-        return;
-    };
 
-    for AnimeGraphCommand(cmd) in msgq_anim_graph_command.read() {
-        match cmd {
-            anim_graph::AnimeGraphCommand::PlayRepeat(node_name) => {
-                if let Some(&node_index) = graph_helper.node_id_to_idx().get(node_name.as_str()) {
-                    if let Some(anm) = player.animation_mut(node_index) {
-                        anm.replay();
-                    } else {
-                        player.play(node_index).repeat();
-                    }
-                } else {
-                    error!("Node {} not found in ControlPanel", node_name);
-                }
-            }
-            anim_graph::AnimeGraphCommand::StopPlay(node_name) => {
-                if let Some(&node_index) = graph_helper.node_id_to_idx().get(node_name.as_str()) {
-                    if let Some(_anm) = player.animation_mut(node_index) {
-                        player.stop(node_index);
-                    } else {
-                        info!("Node {} is not playing, cannot stop", node_name);
-                    }
-                } else {
-                    error!("Node {} not found in ControlPanel", node_name);
-                }
-            }
-            anim_graph::AnimeGraphCommand::SetWeight(node_name, weight) => {
-                if let Some(&node_index) = graph_helper.node_id_to_idx().get(node_name.as_str()) {
-                    let Some(node) = graph.get_mut(node_index) else {
-                        error!("Node {} not found in AnimationGraph", node_name);
-                        continue;
-                    };
-                    node.weight = *weight;
-                } else {
-                    error!("Node {} not found in ControlPanel", node_name);
-                }
-            }
-        }
-    }
-}
 
 fn debug_print_animation_targets_with_names(
     mut msgq_debug_command: MessageReader<DebugCommand>,
