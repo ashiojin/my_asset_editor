@@ -1,11 +1,9 @@
 use bevy::{
     asset::RenderAssetUsages,
     log::*,
-    math::{
-        Vec3,
-        primitives::{Measured2d, Primitive3d},
-    },
+    math::Vec3,
     mesh::{Mesh, MeshBuilder, Meshable},
+    shape::{Measured2d, Primitive3d},
 };
 
 #[derive(Copy, Clone)]

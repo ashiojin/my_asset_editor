@@ -6,6 +6,7 @@ mod sample;
 
 fn main() {
     let asset_root_path = std::env::var("ASSETS_DIR").unwrap_or("assets".into());
+    info!("ASSETS_DIR: {}", asset_root_path);
     let default_plugin = DefaultPlugins
         .set(AssetPlugin {
             file_path: asset_root_path,

@@ -1,10 +1,8 @@
 use bevy::{
     asset::RenderAssetUsages,
-    math::{
-        Dir3,
-        primitives::{Measured2d, Primitive3d},
-    },
+    math::Dir3,
     mesh::{Mesh, MeshBuilder, Meshable},
+    shape::{Measured2d, Primitive3d},
 };
 
 #[derive(Copy, Clone)]

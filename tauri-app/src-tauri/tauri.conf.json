@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.ashiojin.tauri-app",
   "build": {
-    "beforeDevCommand": "bun run dev",
+    "beforeDevCommand": "echo '[ERROR] WinビルドをWSL上で行うためtauri devは禁止してます。README.mdを参照してください' && exit 1",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "bun run build",
     "frontendDist": "../dist"

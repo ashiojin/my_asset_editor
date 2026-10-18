@@ -1,8 +1,9 @@
 use bevy::{
     asset::RenderAssetUsages,
-    math::{Vec3, primitives::Primitive3d},
-    mesh::{Indices, Mesh, MeshBuilder, Meshable, MeshVertexAttribute, PrimitiveTopology},
+    math::Vec3,
+    mesh::{Indices, Mesh, MeshBuilder, MeshVertexAttribute, Meshable, PrimitiveTopology},
     render::render_resource::VertexFormat,
+    shape::Primitive3d,
 };
 
 pub const ATTRIBUTE_TIME: MeshVertexAttribute = MeshVertexAttribute::new(
@@ -223,7 +224,10 @@ pub struct SplineTrail {
 
 impl SplineTrail {
     pub fn new(points: Vec<SplineTrailPoint>, subdivisions: u32) -> Self {
-        Self { points, subdivisions }
+        Self {
+            points,
+            subdivisions,
+        }
     }
 
     /// Build a single Bevy Mesh using the specified interpolation mode.
@@ -267,8 +271,7 @@ impl SplineTrail {
         // history (matching the single-run behaviour exactly when there are
         // no breaks). Counted in point-to-point segments across all runs.
         let total_point_segments: usize = runs.iter().map(|r| r.len() - 1).sum();
-        let total_subdiv_segments_f =
-            (total_point_segments * self.subdivisions as usize) as f32;
+        let total_subdiv_segments_f = (total_point_segments * self.subdivisions as usize) as f32;
 
         let mut slices: Vec<Slice> = Vec::new();
         // (start, end) slice-index range per run, so triangles never span runs.
@@ -294,7 +297,11 @@ impl SplineTrail {
                     && run_idx == last_run_idx
                     && mode == TrailInterpolationMode::LinearLastSegment;
 
-                let max_s = if is_last_segment { self.subdivisions } else { self.subdivisions - 1 };
+                let max_s = if is_last_segment {
+                    self.subdivisions
+                } else {
+                    self.subdivisions - 1
+                };
 
                 for s in 0..=max_s {
                     let u = s as f32 / self.subdivisions as f32;
@@ -319,7 +326,12 @@ impl SplineTrail {
                         )
                     };
 
-                    slices.push(Slice { root, tip, time, u: global_u });
+                    slices.push(Slice {
+                        root,
+                        tip,
+                        time,
+                        u: global_u,
+                    });
                 }
             }
 
@@ -445,12 +457,10 @@ impl SplineTrail {
 pub fn catmull_rom(p0: Vec3, p1: Vec3, p2: Vec3, p3: Vec3, t: f32) -> Vec3 {
     let t2 = t * t;
     let t3 = t2 * t;
-    0.5 * (
-        (2.0 * p1) +
-        (-p0 + p2) * t +
-        (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 +
-        (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3
-    )
+    0.5 * ((2.0 * p1)
+        + (-p0 + p2) * t
+        + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2
+        + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3)
 }
 
 #[cfg(test)]
@@ -466,16 +476,17 @@ mod tests {
             Vec3::new(0.0, 2.0, 0.0),
             0.0,
             1.0,
-        ).with_resolution(10);
-        
+        )
+        .with_resolution(10);
+
         let mesh = trail.mesh().build();
-        
+
         // Resolution 10 means 11 steps.
         // Each step has 2 vertices.
         // Total vertices per side: 11 * 2 = 22.
         // Double-sided: 22 * 2 = 44.
         assert_eq!(mesh.count_vertices(), 44);
-        
+
         // 10 segments.
         // Each segment has 2 triangles per side.
         // Each triangle has 3 indices.
@@ -511,8 +522,10 @@ mod tests {
         ];
 
         let spline = SplineTrail::new(points, 4);
-        
-        let mesh_cr = spline.build_mesh(TrailInterpolationMode::CatmullRom).unwrap();
+
+        let mesh_cr = spline
+            .build_mesh(TrailInterpolationMode::CatmullRom)
+            .unwrap();
         let mesh_linear = spline
             .build_mesh(TrailInterpolationMode::LinearLastSegment)
             .unwrap();
@@ -564,7 +577,9 @@ mod tests {
         ];
 
         let spline = SplineTrail::new(points, subdivisions);
-        let mesh = spline.build_mesh(TrailInterpolationMode::CatmullRom).unwrap();
+        let mesh = spline
+            .build_mesh(TrailInterpolationMode::CatmullRom)
+            .unwrap();
 
         // Two independent runs of 2 points each. Each run = 1 * subdivisions = 4 quads
         // spanning 5 slices → 10 vertices/side. Double-sided → 40 vertices, 96 indices.
@@ -616,7 +631,9 @@ mod tests {
         let spline = SplineTrail::new(points, 4);
 
         assert!(
-            spline.build_mesh(TrailInterpolationMode::CatmullRom).is_none(),
+            spline
+                .build_mesh(TrailInterpolationMode::CatmullRom)
+                .is_none(),
             "no run has two points, so there is nothing to draw"
         );
     }
@@ -649,7 +666,9 @@ mod tests {
         ];
 
         let spline = SplineTrail::new(points, subdivisions);
-        let mesh = spline.build_mesh(TrailInterpolationMode::CatmullRom).unwrap();
+        let mesh = spline
+            .build_mesh(TrailInterpolationMode::CatmullRom)
+            .unwrap();
 
         // Only the [p1, p2] run survives: 1 * subdivisions = 4 quads, 5 slices,
         // 10 verts/side → 20 verts double-sided, 48 indices.

@@ -1,10 +1,8 @@
 use bevy::{
     asset::RenderAssetUsages,
-    math::{
-        Dir3, Vec3,
-        primitives::{Measured2d, Primitive3d},
-    },
+    math::{Dir3, Vec3},
     mesh::{Indices, Mesh, MeshBuilder, Meshable, PrimitiveTopology},
+    shape::{Measured2d, Primitive3d},
 };
 
 /// A belt shape defined by a start point and cross-sectional direction, and an end point and cross-sectional direction.
@@ -187,22 +185,16 @@ mod tests {
 
     #[test]
     fn test_belt_mesh() {
-        let belt = Belt::new(
-            Vec3::X,
-            Dir3::Z,
-            Vec3::Y,
-            Dir3::Z,
-            0.1,
-        ).with_resolution(10);
-        
+        let belt = Belt::new(Vec3::X, Dir3::Z, Vec3::Y, Dir3::Z, 0.1).with_resolution(10);
+
         let mesh = belt.mesh().build();
-        
+
         // Resolution 10 means 11 steps.
         // Each step has 2 vertices.
         // Total vertices per side: 11 * 2 = 22.
         // Double-sided: 22 * 2 = 44.
         assert_eq!(mesh.count_vertices(), 44);
-        
+
         // 10 segments.
         // Each segment has 2 triangles per side.
         // Each triangle has 3 indices.
@@ -219,18 +211,23 @@ mod tests {
             Vec3::Y,
             Dir3::Z,
             0.2,
-        ).with_resolution(10);
+        )
+        .with_resolution(10);
 
         let mesh = belt.mesh().build();
-        let positions = mesh.attribute(Mesh::ATTRIBUTE_POSITION).unwrap().as_float3().unwrap();
-        
+        let positions = mesh
+            .attribute(Mesh::ATTRIBUTE_POSITION)
+            .unwrap()
+            .as_float3()
+            .unwrap();
+
         // At t=0 (start), p = X, side should be Z.
         // v_left = X + Z * 0.1 = (1, 0, 0.1)
         // v_right = X - Z * 0.1 = (1, 0, -0.1)
-        
+
         let v0 = Vec3::from_array(positions[0]);
         let v1 = Vec3::from_array(positions[1]);
-        
+
         assert_eq!(v0, Vec3::new(1.0, 0.0, 0.1));
         assert_eq!(v1, Vec3::new(1.0, 0.0, -0.1));
     }
