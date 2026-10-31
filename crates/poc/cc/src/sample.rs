@@ -92,7 +92,7 @@ fn spawn_sample_character(mut commands: Commands, store: Res<GltfStore>, gltf: R
     let id = commands
         .spawn((
             PlayerController,
-            AthleticBundle::new(
+            AthleticBundle::new( // TODO: separate `StandingCapable`
                 col_id,
                 Collider::capsule(cap_radius, cap_length),
                 col_trans,
@@ -103,28 +103,28 @@ fn spawn_sample_character(mut commands: Commands, store: Res<GltfStore>, gltf: R
         ))
         .add_child(col_id)
         .add_child(app_id)
-        .observe(move |_ev: On<StartLanding>, mut commands: Commands| {
+        .observe(move |_ev: On<StartLanding>, mut commands: Commands| {// TODO: remove `JumpCapable`
             commands.entity(app_id).queue(
                 ashiojin_extensions::animation::AnimationGraphCommandRequest(
                     "into-landing".to_string(),
                 ),
             );
         })
-        .observe(move |_ev: On<StartTakeoff>, mut commands: Commands| {
+        .observe(move |_ev: On<StartTakeoff>, mut commands: Commands| {// TODO: remove `JumpCapable` 
             commands.entity(app_id).queue(
                 ashiojin_extensions::animation::AnimationGraphCommandRequest(
                     "into-takeoff".to_string(),
                 ),
             );
         })
-        .observe(move |_ev: On<StartStanding>, mut commands: Commands| {
+        .observe(move |_ev: On<StartStanding>, mut commands: Commands| { // TODO: insert `JumpCapable`
             commands.entity(app_id).queue(
                 ashiojin_extensions::animation::AnimationGraphCommandRequest(
                     "into-idle".to_string(),
                 ),
             );
         })
-        .observe(move |_ev: On<StartInAir>, mut commands: Commands| {
+        .observe(move |_ev: On<StartInAir>, mut commands: Commands| { // TODO: remove `JumpCapable`
             commands.entity(app_id).queue(
                 ashiojin_extensions::animation::AnimationGraphCommandRequest(
                     "into-inair".to_string(),
@@ -159,7 +159,7 @@ fn spawn_sample_character(mut commands: Commands, store: Res<GltfStore>, gltf: R
                             "Crunting animation at jumping for entity: {:?}",
                             trigger.entity()
                         );
-                        commands.entity(link.controller_entity()).jump();
+                        commands.entity(link.controller_entity()).jump(); // TODO: `JumpCapable`
                     }
                     _ => {
                         warn!(

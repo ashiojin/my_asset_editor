@@ -111,6 +111,7 @@ pub struct StartInAir(Entity);
 /// Component to indicate the grounded state of the character
 #[derive(Component, Debug)]
 pub enum Grounded {
+    // TODO: separate the component into `StandingCapable` and `Grounded`, so that `Grounded` only means whether or not the entity is grounded. CharacterController should have the states.
     Landing { elapsed: f32 },
     Standing,
     Crunting { elapsed: f32 },
@@ -154,9 +155,7 @@ impl AthleticBundle {
             locked_axes: LockedAxes::ROTATION_LOCKED,
             grounding_caster,
             jump_impulse: JumpImpulse(jump_impulse),
-            restitution: Restitution::new(0.0)
-                .with_combine_rule(CoefficientCombine::Min)
-                ,
+            restitution: Restitution::new(0.0).with_combine_rule(CoefficientCombine::Min),
         }
     }
 }
@@ -257,9 +256,13 @@ fn update_grounded(
 //     }
 // }
 
+// TODO: replace to use JumpCapable.
 fn movement(
     mut commands: Commands,
-    mut q_athletic_base: Query<(Entity, &AthleticController, Option<&Grounded>), With<PlayerController>>,
+    mut q_athletic_base: Query<
+        (Entity, &AthleticController, Option<&Grounded>),
+        With<PlayerController>,
+    >,
     mut player_indication_reader: MessageReader<PlayerIndication>,
 ) {
     for movement in player_indication_reader.read() {
@@ -270,8 +273,7 @@ fn movement(
                 commands
                     .entity(entity)
                     .try_insert(Grounded::Crunting { elapsed: 0.0 })
-                    .trigger(StartTakeoff)
-                    ;
+                    .trigger(StartTakeoff);
             }
         }
         // let Ok((entity, _base, o_grounded)) = q_athletic_base.get_mut(player_character.control)

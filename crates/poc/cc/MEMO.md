@@ -2,7 +2,24 @@
 
 ## For the Next
 
-Next: migration to Bevy 0.20
+### New Design: Separate Action Capability Modules
+
+#### Capability components
+
+Character Controller is a state machine that has an animation graph module and add/remove some capability components.
+A Capability component represent its Entity has the capability now: `JumpCapable`, `RcWalkCapable`, ... `XxxCapable`.
+
+e.g. "Jump":
+
+1. A Character controller inserts a `JumpCapable` when its state has jump capability.
+2. When a player intended to make the character jumping, `JumpCapable` chatches it and emits a jump intended event.
+3. The Character controller receives the event, and then it issues a playing crunting animation request to the animation graph.
+4. The animation graph emits a take-off event when the crunting animation clip reatched at a pre-defined point.
+5. The character controller receives the event, and then it issues a jump request to the `JumpCapable`.
+6. The `JumpCapable` adds an upper force to the Entity.
+
+
+### Trun & Walk
 
 Next: Add turn & walk
 
@@ -29,9 +46,7 @@ stateDiagram-v2
 
 ### Controller & Graph connector
 
-- [ ] Transforms of Collider and ShapeCaster for the ground should be specfied
-  in Gltf extensions or our asset file having Gltf path & animation graph
-  (or graph file path).
+- [ ] Transforms of Collider and ShapeCaster for the ground should be specfied in Gltf extensions or our asset file having Gltf path & animation graph (or graph file path).
 - [ ] description for Graph events -> Controller commands & Controller events -> Graph commands
 
 ### Controller
