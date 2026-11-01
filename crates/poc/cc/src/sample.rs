@@ -1,4 +1,7 @@
-use crate::character_control::*;
+use crate::character_control::{
+    capability::jump::{JumpCapable, StartCrunting, request_jump},
+    *,
+};
 use ashiojin_extensions::animation::AnimationGraphSource;
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -13,8 +16,6 @@ impl Plugin for SamplePlugin {
             Update,
             (
                 spawn_sample_character.run_if(in_state(SampleState::WaitLoading)),
-                //initailize_around_animation_clips.run_if(in_state(SampleState::Idle)),
-                // debug_animation_playing_state.run_if(in_state(SampleState::Idle)),
             ),
         );
     }
@@ -61,6 +62,9 @@ impl LinkToController {
     }
 }
 
+#[derive(Component, Debug)]
+struct SampleLanding;
+
 fn spawn_sample_character(mut commands: Commands, store: Res<GltfStore>, gltf: Res<Assets<Gltf>>) {
     if !gltf.contains(&store.h_gltf) {
         info!("Gltf not loaded yet, waiting...");
@@ -92,7 +96,8 @@ fn spawn_sample_character(mut commands: Commands, store: Res<GltfStore>, gltf: R
     let id = commands
         .spawn((
             PlayerController,
-            AthleticBundle::new( // TODO: separate `StandingCapable`
+            CharacterControllerBundle::new(
+                // TODO: separate `StandingCapable`
                 col_id,
                 Collider::capsule(cap_radius, cap_length),
                 col_trans,
@@ -103,40 +108,41 @@ fn spawn_sample_character(mut commands: Commands, store: Res<GltfStore>, gltf: R
         ))
         .add_child(col_id)
         .add_child(app_id)
-        .observe(move |_ev: On<StartLanding>, mut commands: Commands| {// TODO: remove `JumpCapable`
-            commands.entity(app_id).queue(
-                ashiojin_extensions::animation::AnimationGraphCommandRequest(
-                    "into-landing".to_string(),
-                ),
-            );
+        .observe(move |_ev: On<GetGrounded>, mut commands: Commands| {
+            commands
+                .entity(app_id)
+                .queue(
+                    ashiojin_extensions::animation::AnimationGraphCommandRequest(
+                        "into-landing".to_string(),
+                    ),
+                )
+                .try_insert(SampleLanding);
         })
-        .observe(move |_ev: On<StartTakeoff>, mut commands: Commands| {// TODO: remove `JumpCapable` 
-            commands.entity(app_id).queue(
-                ashiojin_extensions::animation::AnimationGraphCommandRequest(
-                    "into-takeoff".to_string(),
-                ),
-            );
+        .observe(move |_ev: On<LostGrounded>, mut commands: Commands| {
+            commands
+                .entity(app_id)
+                .queue(
+                    ashiojin_extensions::animation::AnimationGraphCommandRequest(
+                        "into-inair".to_string(),
+                    ),
+                )
+                .try_remove::<JumpCapable>();
         })
-        .observe(move |_ev: On<StartStanding>, mut commands: Commands| { // TODO: insert `JumpCapable`
-            commands.entity(app_id).queue(
-                ashiojin_extensions::animation::AnimationGraphCommandRequest(
-                    "into-idle".to_string(),
-                ),
-            );
-        })
-        .observe(move |_ev: On<StartInAir>, mut commands: Commands| { // TODO: remove `JumpCapable`
-            commands.entity(app_id).queue(
-                ashiojin_extensions::animation::AnimationGraphCommandRequest(
-                    "into-inair".to_string(),
-                ),
-            );
+        .observe(move |_ev: On<StartCrunting>, mut commands: Commands| {
+            commands
+                .entity(app_id)
+                .queue(
+                    ashiojin_extensions::animation::AnimationGraphCommandRequest(
+                        "into-takeoff".to_string(),
+                    ),
+                )
+                .try_remove::<JumpCapable>();
         })
         .id();
 
     commands.entity(app_id).insert(LinkToController::new(id));
     commands
         .entity(app_id)
-        //.try_insert(event_desc)
         .observe(
             |trigger: On<ashiojin_extensions::animation::ClipNodeEvent>,
              mut commands: Commands,
@@ -152,14 +158,26 @@ fn spawn_sample_character(mut commands: Commands, store: Res<GltfStore>, gltf: R
                             "Landing animation finished for entity: {:?}",
                             trigger.entity()
                         );
-                        commands.entity(link.controller_entity()).get_standing();
+
+                        commands.entity(trigger.entity()).queue(
+                            ashiojin_extensions::animation::AnimationGraphCommandRequest(
+                                "into-idle".to_string(),
+                            ),
+                        );
+
+                        commands
+                            .entity(link.controller_entity())
+                            .try_remove::<SampleLanding>()
+                            .try_insert(JumpCapable::default());
                     }
                     "jumping" => {
                         info!(
                             "Crunting animation at jumping for entity: {:?}",
                             trigger.entity()
                         );
-                        commands.entity(link.controller_entity()).jump(); // TODO: `JumpCapable`
+                        commands
+                            .entity(link.controller_entity())
+                            .queue(request_jump);
                     }
                     _ => {
                         warn!(
