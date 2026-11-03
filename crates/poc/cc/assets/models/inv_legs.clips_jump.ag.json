@@ -15,6 +15,13 @@
         "mask": []
       }
     },
+    "clip_4": {
+      "Clip": {
+        "clip": "walk",
+        "weight": 1.0,
+        "mask": []
+      }
+    },
     "clip_1": {
       "Clip": {
         "clip": "takeoff",
@@ -46,6 +53,10 @@
     {
       "src": "clip_3",
       "dest": "root"
+    },
+    {
+      "src": "clip_4",
+      "dest": "root"
     }
   ],
   "mask_groups": [],
@@ -72,93 +83,162 @@
     {
       "name": "into-idle",
       "list": [
-        {"Play": {
-          "target_node": "clip_0",
-          "repeat": true,
-          "speed": 1.0
-        }}
-        ,
-        {"Stop": {
-          "target_node": "clip_1"
-        }}
-        ,
-        {"Stop": {
-          "target_node": "clip_2"
-        }}
-        ,
-        {"Stop": {
-          "target_node": "clip_3"
-        }}
+        {
+          "Play": {
+            "target_node": "clip_0",
+            "repeat": true,
+            "speed": 1.0
+          }
+        },
+        {
+          "Stop": {
+            "target_node": "clip_1"
+          }
+        },
+        {
+          "Stop": {
+            "target_node": "clip_2"
+          }
+        },
+        {
+          "Stop": {
+            "target_node": "clip_3"
+          }
+        },
+        {
+          "Stop": {
+            "target_node": "clip_4"
+          }
+        }
       ]
-    }
-    ,
+    },
     {
       "name": "into-landing",
       "list": [
-        {"Play": {
-          "target_node": "clip_3",
-          "repeat": false,
-          "speed": 1.0
-        }}
-        ,
-        {"Stop": {
-          "target_node": "clip_1"
-        }}
-        ,
-        {"Stop": {
-          "target_node": "clip_2"
-        }}
-        ,
-        {"Stop": {
-          "target_node": "clip_0"
-        }}
+        {
+          "Play": {
+            "target_node": "clip_3",
+            "repeat": false,
+            "speed": 1.0
+          }
+        },
+        {
+          "Stop": {
+            "target_node": "clip_0"
+          }
+        },
+        {
+          "Stop": {
+            "target_node": "clip_1"
+          }
+        },
+        {
+          "Stop": {
+            "target_node": "clip_2"
+          }
+        },
+        {
+          "Stop": {
+            "target_node": "clip_4"
+          }
+        }
       ]
-    }
-    ,
+    },
     {
       "name": "into-takeoff",
       "list": [
-        {"Play": {
-          "target_node": "clip_1",
-          "repeat": false,
-          "speed": 1.0
-        }}
-        ,
-        {"Stop": {
-          "target_node": "clip_0"
-        }}
-        ,
-        {"Stop": {
-          "target_node": "clip_2"
-        }}
-        ,
-        {"Stop": {
-          "target_node": "clip_3"
-        }}
+        {
+          "Play": {
+            "target_node": "clip_1",
+            "repeat": false,
+            "speed": 1.0
+          }
+        },
+        {
+          "Stop": {
+            "target_node": "clip_0"
+          }
+        },
+        {
+          "Stop": {
+            "target_node": "clip_2"
+          }
+        },
+        {
+          "Stop": {
+            "target_node": "clip_3"
+          }
+        },
+        {
+          "Stop": {
+            "target_node": "clip_4"
+          }
+        }
       ]
-    }
-    ,
+    },
     {
       "name": "into-inair",
       "list": [
-        {"Play": {
-          "target_node": "clip_2",
-          "repeat": true,
-          "speed": 1.0
-        }}
-        ,
-        {"Stop": {
-          "target_node": "clip_0"
-        }}
-        ,
-        {"Stop": {
-          "target_node": "clip_1"
-        }}
-        ,
-        {"Stop": {
-          "target_node": "clip_3"
-        }}
+        {
+          "Play": {
+            "target_node": "clip_2",
+            "repeat": true,
+            "speed": 1.0
+          }
+        },
+        {
+          "Stop": {
+            "target_node": "clip_0"
+          }
+        },
+        {
+          "Stop": {
+            "target_node": "clip_1"
+          }
+        },
+        {
+          "Stop": {
+            "target_node": "clip_3"
+          }
+        },
+        {
+          "Stop": {
+            "target_node": "clip_4"
+          }
+        }
+      ]
+    },
+    {
+      "name": "into-walk",
+      "list": [
+        {
+          "Play": {
+            "target_node": "clip_4",
+            "repeat": true,
+            "speed": 1.0
+          }
+        },
+        {
+          "Stop": {
+            "target_node": "clip_0"
+          }
+        },
+        {
+          "Stop": {
+            "target_node": "clip_1"
+          }
+        },
+        {
+          "Stop": {
+            "target_node": "clip_2"
+          }
+        },
+        {
+          "Stop": {
+            "target_node": "clip_3"
+          }
+        }
       ]
     }
-   ]
+  ]
 }
