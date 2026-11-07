@@ -6,11 +6,16 @@ use avian3d::{
     prelude::*,
     spatial_query::{ShapeCaster, ShapeHits},
 };
-use bevy::prelude::*;
+use bevy::{input::keyboard::Key, prelude::*};
 
 use intension::PlayerIntention;
 
-use crate::character_control::{capability::jump::handle_jump_intentions, intension::PlayerIntentionType};
+use crate::{
+    character_control::{
+        capability::{jump::handle_jump_intentions, rc_mov::handle_rc_move_intentions},
+    },
+    unsorted::MainCamera,
+};
 
 pub mod capability;
 pub mod intension;
@@ -25,6 +30,7 @@ impl Plugin for CharacterControlPlugin {
                 keyboard_input.run_if(any_with_component::<PlayerController>),
                 update_grounded,
                 handle_jump_intentions,
+                handle_rc_move_intentions,
             )
                 .chain(),
         );
@@ -87,7 +93,7 @@ impl CharacterControllerBundle {
         Self {
             rigitbody: RigidBody::Dynamic,
             base: CharacterController::new(),
-            locked_axes: LockedAxes::ROTATION_LOCKED,
+            locked_axes: LockedAxes::ROTATION_LOCKED.unlock_rotation_y(),
             grounding_caster,
             jump_impulse: JumpImpulse(jump_impulse),
             restitution: Restitution::new(0.0).with_combine_rule(CoefficientCombine::Min),
@@ -102,12 +108,35 @@ pub struct PlayerController;
 fn keyboard_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut movement_writer: MessageWriter<PlayerIntention>,
+    main_camera: Single<&GlobalTransform, With<MainCamera>>,
 ) {
+    let mut intention = PlayerIntention {
+        jump: false,
+        heading: intension::Heading(Vec3::ZERO),
+    };
     if keyboard_input.just_pressed(KeyCode::Space) {
-        movement_writer.write(PlayerIntention {
-            action: PlayerIntentionType::Jump,
-        });
+        intention.jump = true;
     }
+
+    let forward = main_camera.forward().with_y(0.).normalize();
+    let right = main_camera.right().with_y(0.).normalize();
+    let wasd: [(KeyCode, Vec3); 4] = [
+        (KeyCode::KeyW, forward),
+        (KeyCode::KeyS, -forward),
+        (KeyCode::KeyA, -right),
+        (KeyCode::KeyD, right),
+    ];
+
+    let mut heading_accum = Vec3::ZERO;
+    for (key, dir) in wasd {
+        if keyboard_input.pressed(key) {
+            heading_accum += dir;
+        }
+    }
+    intention.heading.0 = heading_accum.normalize_or_zero();
+    //info!("heading: {:?}/{:?}, camera: {:?}-{:?}, key: {:?}", heading_accum, intention.heading.0, forward, right, wasd.iter().map(|(k, _)| keyboard_input.pressed(*k)).collect::<Vec<_>>());
+
+    movement_writer.write(intention);
 }
 fn update_grounded(
     time: Res<Time>,

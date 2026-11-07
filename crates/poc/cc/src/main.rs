@@ -1,8 +1,11 @@
 use avian3d::prelude::*;
 use bevy::{color::palettes::css, input::keyboard::Key, prelude::*};
 
+use crate::unsorted::MainCamera;
+
 mod character_control;
 mod sample;
+mod unsorted;
 
 fn main() {
     let asset_root_path = std::env::var("ASSETS_DIR").unwrap_or("assets".into());
@@ -40,6 +43,7 @@ fn setup(
 ) {
     let scale = 3.0;
     commands.spawn((
+        MainCamera,
         Camera3d::default(),
         Transform::from_xyz(0.0, scale * 4.0, scale * 7.0).looking_at(Vec3::ZERO, Dir3::Y),
     ));

@@ -1,6 +1,7 @@
+use std::f32::consts::{PI, TAU};
+
 use crate::character_control::{
-    capability::jump::{JumpCapable, StartCrunting, request_jump},
-    *,
+    capability::{jump::{JumpCapable, StartCrunting, request_jump}, rc_mov::RcMoveCapable}, *,
 };
 use ashiojin_extensions::animation::AnimationGraphSource;
 use avian3d::prelude::*;
@@ -89,6 +90,8 @@ fn spawn_sample_character(mut commands: Commands, store: Res<GltfStore>, gltf: R
                     ashiojin_extensions::GltfSceneLabel::Idx(0),
                 ),
                 AnimationGraphSource::new(get_sample_animation_graph()),
+
+                Transform::from_rotation(Quat::from_rotation_y(PI)), //
             ),
         )
         .id();
@@ -105,6 +108,17 @@ fn spawn_sample_character(mut commands: Commands, store: Res<GltfStore>, gltf: R
             ),
             Transform::from_xyz(0.0, length * 8., 0.0), // Spawn the character above the ground
             InheritedVisibility::VISIBLE,
+
+            // TODO:
+            RcMoveCapable {
+                max_speed: 3.0,
+                acceleration: 10.0,
+                max_angular_speed: PI*1.5,
+                angular_acceleration: PI * 3.0,
+            },
+
+            // AngularDamping(1.0),
+            // LinearDamping(1.0),
         ))
         .add_child(col_id)
         .add_child(app_id)

@@ -2,7 +2,7 @@ use avian3d::dynamics::rigid_body::forces::{Forces, WriteRigidBodyForces};
 use bevy::prelude::*;
 
 use crate::character_control::{
-    CharacterController, JumpImpulse, intension::{PlayerIntention, PlayerIntentionType},
+    CharacterController, JumpImpulse, intension::{PlayerIntention},
 };
 
 #[derive(Component, Debug, Clone, Default)]
@@ -16,8 +16,8 @@ pub fn handle_jump_intentions(
     mut q_jumper: Query<(Entity, &JumpCapable), With<CharacterController>>,
     mut player_indication_reader: MessageReader<PlayerIntention>,
 ) {
-    for movement in player_indication_reader.read() {
-        if !matches!(movement.action, PlayerIntentionType::Jump) {
+    for intention in player_indication_reader.read() {
+        if !intention.jump {
             continue;
         }
         for (entity, _jump) in &mut q_jumper {
