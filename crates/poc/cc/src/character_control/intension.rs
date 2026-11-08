@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 #[derive(Message, Debug)]
 pub struct PlayerIntention {
+    pub entity: Entity, // what entity is this intention for?
     pub jump: bool,
     pub heading: Heading,
 }

@@ -6,7 +6,7 @@ use avian3d::{
     prelude::*,
     spatial_query::{ShapeCaster, ShapeHits},
 };
-use bevy::{input::keyboard::Key, prelude::*};
+use bevy::prelude::*;
 
 use intension::PlayerIntention;
 
@@ -109,8 +109,11 @@ fn keyboard_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut movement_writer: MessageWriter<PlayerIntention>,
     main_camera: Single<&GlobalTransform, With<MainCamera>>,
+    q_player: Single<Entity, With<PlayerController>>,
 ) {
+    let entity = *q_player;
     let mut intention = PlayerIntention {
+        entity,
         jump: false,
         heading: intension::Heading(Vec3::ZERO),
     };

@@ -6,7 +6,15 @@ use crate::character_control::{
 };
 
 #[derive(Component, Debug, Clone, Default)]
-pub struct JumpCapable {}
+pub struct JumpCapable {
+    tag: &'static str,
+}
+
+impl JumpCapable {
+    pub fn new(tag: &'static str) -> Self {
+        Self { tag }
+    }
+}
 
 #[derive(EntityEvent, Debug)]
 pub struct StartCrunting(Entity);
@@ -20,15 +28,21 @@ pub fn handle_jump_intentions(
         if !intention.jump {
             continue;
         }
-        for (entity, _jump) in &mut q_jumper {
-            commands.entity(entity).trigger(StartCrunting);
+        if let Ok((_entity, jump)) = q_jumper.get(intention.entity) {
+            debug!("Jump intention received for entity {:?} {}", intention.entity, jump.tag);
+            commands.entity(intention.entity).trigger(StartCrunting);
+        } else {
+            warn!(
+                "entity {:?} does not have JumpCapable component",
+                intention.entity
+            );
         }
     }
 }
 
 
 pub fn request_jump(mut entity: EntityWorldMut) {
-    let Ok((jump_impulse, mut forces, _jump)) = entity.get_components_mut::<(&JumpImpulse, Forces, &JumpCapable)>()
+    let Ok((jump_impulse, mut forces)) = entity.get_components_mut::<(&JumpImpulse, Forces)>()
     else {
         error!(
             "entity {:?} does not have JumpImpulse and Forces components",

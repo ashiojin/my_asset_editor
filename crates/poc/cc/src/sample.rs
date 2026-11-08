@@ -1,7 +1,11 @@
-use std::f32::consts::{PI, TAU};
+use std::f32::consts::PI;
 
 use crate::character_control::{
-    capability::{jump::{JumpCapable, StartCrunting, request_jump}, rc_mov::RcMoveCapable}, *,
+    capability::{
+        jump::{JumpCapable, StartCrunting, request_jump},
+        rc_mov::RcMoveCapable,
+    },
+    *,
 };
 use ashiojin_extensions::animation::AnimationGraphSource;
 use avian3d::prelude::*;
@@ -15,9 +19,7 @@ impl Plugin for SamplePlugin {
         app.add_systems(Startup, start_load_gltf);
         app.add_systems(
             Update,
-            (
-                spawn_sample_character.run_if(in_state(SampleState::WaitLoading)),
-            ),
+            (spawn_sample_character.run_if(in_state(SampleState::WaitLoading)),),
         );
     }
 }
@@ -90,7 +92,6 @@ fn spawn_sample_character(mut commands: Commands, store: Res<GltfStore>, gltf: R
                     ashiojin_extensions::GltfSceneLabel::Idx(0),
                 ),
                 AnimationGraphSource::new(get_sample_animation_graph()),
-
                 Transform::from_rotation(Quat::from_rotation_y(PI)), //
             ),
         )
@@ -108,102 +109,109 @@ fn spawn_sample_character(mut commands: Commands, store: Res<GltfStore>, gltf: R
             ),
             Transform::from_xyz(0.0, length * 8., 0.0), // Spawn the character above the ground
             InheritedVisibility::VISIBLE,
-
             // TODO:
-            RcMoveCapable {
-                max_speed: 3.0,
-                acceleration: 10.0,
-                max_angular_speed: PI*1.5,
-                angular_acceleration: PI * 3.0,
-            },
-
             // AngularDamping(1.0),
             // LinearDamping(1.0),
         ))
         .add_child(col_id)
         .add_child(app_id)
-        .observe(move |_ev: On<GetGrounded>, mut commands: Commands| {
+        .observe(move |ev: On<GetGrounded>, mut commands: Commands| {
+            info!("{:?}: GetGrounded", ev.event_target());
             commands
                 .entity(app_id)
                 .queue(
                     ashiojin_extensions::animation::AnimationGraphCommandRequest(
                         "into-landing".to_string(),
                     ),
-                )
-                .try_insert(SampleLanding);
+                );
+            commands
+                .entity(ev.event_target())
+                .try_insert((
+                    SampleLanding,
+                    RcMoveCapable::new("@GetGrounded", 0.0, 0.0, PI * 0.025, PI * 0.05),
+                ));
         })
-        .observe(move |_ev: On<LostGrounded>, mut commands: Commands| {
+        .observe(move |ev: On<LostGrounded>, mut commands: Commands| {
             commands
                 .entity(app_id)
                 .queue(
                     ashiojin_extensions::animation::AnimationGraphCommandRequest(
                         "into-inair".to_string(),
                     ),
-                )
+                );
+            commands.entity(ev.event_target())
                 .try_remove::<JumpCapable>();
         })
-        .observe(move |_ev: On<StartCrunting>, mut commands: Commands| {
+        .observe(move |ev: On<StartCrunting>, mut commands: Commands| {
             commands
                 .entity(app_id)
                 .queue(
                     ashiojin_extensions::animation::AnimationGraphCommandRequest(
                         "into-takeoff".to_string(),
                     ),
-                )
-                .try_remove::<JumpCapable>();
+                );
+            commands.entity(ev.event_target())
+                .try_remove::<JumpCapable>()
+                .try_insert((
+                    RcMoveCapable::new("@StartCrunting", 0.0, 0.0, PI * 0.5, PI * 1.0),
+                ));
         })
         .id();
 
     commands.entity(app_id).insert(LinkToController::new(id));
-    commands
-        .entity(app_id)
-        .observe(
-            |trigger: On<ashiojin_extensions::animation::ClipNodeEvent>,
-             mut commands: Commands,
-             q_link_to_controller: Query<&LinkToController>| {
-                info!("Received animation event: {:?}", trigger);
-                let link = q_link_to_controller
-                    .get(trigger.entity())
-                    .expect("LinkToController not found for the entity");
+    commands.entity(app_id).observe(
+        |trigger: On<ashiojin_extensions::animation::ClipNodeEvent>,
+         mut commands: Commands,
+         q_link_to_controller: Query<&LinkToController>| {
+            info!("Received animation event: {:?}", trigger);
+            let link = q_link_to_controller
+                .get(trigger.entity())
+                .expect("LinkToController not found for the entity");
 
-                match trigger.event_name() {
-                    "landing-end" => {
-                        info!(
-                            "Landing animation finished for entity: {:?}",
-                            trigger.entity()
-                        );
+            match trigger.event_name() {
+                "landing-end" => {
+                    info!(
+                        "Landing animation finished for entity: {:?}",
+                        trigger.entity()
+                    );
 
-                        commands.entity(trigger.entity()).queue(
-                            ashiojin_extensions::animation::AnimationGraphCommandRequest(
-                                "into-idle".to_string(),
-                            ),
-                        );
+                    commands.entity(trigger.entity()).queue(
+                        ashiojin_extensions::animation::AnimationGraphCommandRequest(
+                            "into-idle".to_string(),
+                        ),
+                    );
 
-                        commands
-                            .entity(link.controller_entity())
-                            .try_remove::<SampleLanding>()
-                            .try_insert(JumpCapable::default());
-                    }
-                    "jumping" => {
-                        info!(
-                            "Crunting animation at jumping for entity: {:?}",
-                            trigger.entity()
-                        );
-                        commands
-                            .entity(link.controller_entity())
-                            .queue(request_jump);
-                    }
-                    _ => {
-                        warn!(
-                            "Ignored unknown event name: {} for entity: {:?}(controller:{:?})",
-                            trigger.event_name(),
-                            trigger.entity(),
-                            link.controller_entity()
-                        );
-                    }
+                    commands
+                        .entity(link.controller_entity())
+                        .try_remove::<SampleLanding>()
+                        .try_insert((
+                            JumpCapable::new("@landing-end"),
+                            RcMoveCapable::new("@landing-end", 5.0, 10.0, PI * 1.5, PI * 3.0),
+                        ));
                 }
-            },
-        );
+                "jumping" => {
+                    info!(
+                        "Crunting animation at jumping for entity: {:?}",
+                        trigger.entity()
+                    );
+                    commands
+                        .entity(link.controller_entity())
+                        .queue(request_jump)
+                        .try_insert((
+                            RcMoveCapable::new("@jumping", 5.0, 10.0, PI * 0.5, PI * 1.0),
+                        ));
+                }
+                _ => {
+                    warn!(
+                        "Ignored unknown event name: {} for entity: {:?}(controller:{:?})",
+                        trigger.event_name(),
+                        trigger.entity(),
+                        link.controller_entity()
+                    );
+                }
+            }
+        },
+    );
 
     commands.set_state(SampleState::Idle);
 }
