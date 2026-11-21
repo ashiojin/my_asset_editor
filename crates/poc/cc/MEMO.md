@@ -107,28 +107,25 @@ description:
 kick :
 ```rust
 let args = HashMap::new();
-args.insert("arg_name", 0.5);
+args.insert("arg_name", Val::F32(0.5));
 commands.entity(e).queue(AnimationGraphCommandRequest("an action", args));
+// If the `args` does not contain enough arguments, it will panic
 ```
 
-#### Simpel calculation in commands description
+#### Or/And allow their values to be scripted
 
 ```json
 {
   "name": "an action",
+  "arguments": [
+    { "name": "arg_name", "type": "f32" }
+  ],
   "list": [
     { "SetWeight": {
       "target_node": "blendnode_for_xxx",
-      "weight": {
-        "CalcPlus" : {
-          "left": { "ArgF32": { "name" : "arg_name" } },
-          "right": { "ConstF32": { "value": 0.2 } }
-        }
-      }
+      "weight": "arg['arg_name'] + this.storage['base_weight'] /* Rhai or similar */"
     }}
   ]
 }
 ```
-
-
 
