@@ -2,10 +2,8 @@ use std::f32::consts::PI;
 
 use crate::character_control::{
     capability::{
-        jump::{JumpCapable, StartCrunting, request_jump},
-        rc_mov::RcMoveCapable,
-    },
-    *,
+        jump::{JumpCapable, StartCrunting, request_jump}, rc_mov::{RcMoveCapable, UpdateRcMove},
+    }, *,
 };
 use ashiojin_extensions::animation::AnimationGraphSource;
 use avian3d::prelude::*;
@@ -155,6 +153,10 @@ fn spawn_sample_character(mut commands: Commands, store: Res<GltfStore>, gltf: R
                 .try_insert((
                     RcMoveCapable::new("@StartCrunting", 0.0, 0.0, PI * 0.5, PI * 1.0),
                 ));
+        })
+        .observe(move |ev: On<UpdateRcMove>, mut _commands: Commands| {
+            let event = ev.event();
+            info!("UpdateRcMove event {:?}", event);
         })
         .id();
 
